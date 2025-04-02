@@ -216,8 +216,6 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
 ggsave(filename = "Simulations/KaplanMeier.png", width = 5, height = 3.5, dpi = 300)
 
 # Risk ratio over time
-kmsDf <- as_tibble(kms[c("time", "surv", "strata")])
-
 vizData <- bind_rows(
   tibble(
     x = x,
@@ -235,25 +233,52 @@ vizData <- bind_rows(
     label = "Average without depletion"
   )
 )
-kmEstimate <- inner_join(
-  kmsDf |>
-    filter(strata == "a=1", time <= 100) |>
-    transmute(pTarget = 1 - surv, x = time),
-  kmsDf |>
-    filter(strata == "a=0", time <= 100) |>
-    transmute(pComparator = 1 - surv, x = time),
-  by = join_by(x)
-) |>
-  mutate(
-    riskRatio = pTarget / pComparator,
-    riskDifference = pTarget - pComparator,
-    label = "KM risk ratio"
-  )
+calculate_rr_bootstrap <- function(data, sample = FALSE) {
+  if (sample) {
+    boot_data <- data[sample.int(nrow(data), nrow(data), replace = TRUE), ]
+  } else {
+    boot_data <- data
+  }
+  
+  boot_km <- survfit(Surv(survivalTime, y) ~ a, data = boot_data)
+  boot_kms <- summary(boot_km)
+  boot_kmsDf <- as_tibble(boot_kms[c("time", "surv", "strata")])
+  
+  boot_kmEstimate <- inner_join(
+    boot_kmsDf |>
+      filter(strata == "a=1", time <= 100) |>
+      transmute(pTarget = 1 - surv, x = time),
+    boot_kmsDf |>
+      filter(strata == "a=0", time <= 100) |>
+      transmute(pComparator = 1 - surv, x = time),
+    by = join_by(x)
+  ) |>
+    mutate(riskRatio = pTarget / pComparator) |>
+    right_join(tibble(x = 1:100), by = join_by(x)) |>
+    arrange(x) |>
+    select(x, riskRatio) |>
+    mutate(riskRatio = if_else(is.na(riskRatio) & x == 1, 1, riskRatio)) |> 
+    tidyr::fill(riskRatio, .direction = "down") 
+  
+  return(boot_kmEstimate)
+}
+data = data.frame(survivalTime, y, a)
+kmEstimate <- calculate_rr_bootstrap(data)
+bootstrap <- lapply(1:1000, function(x) calculate_rr_bootstrap(data, sample = TRUE))
+bootstrap <- bind_rows(bootstrap)
+ci <- bootstrap |>
+  group_by(x) |>
+  summarise(lower = quantile(riskRatio, 0.025),
+            upper = quantile(riskRatio, 0.975))
+kmEstimate <- kmEstimate |>
+  inner_join(ci, by = join_by(x)) |>
+  mutate(label = "KM risk ratio")
 
 ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
   geom_hline(yintercept = 0) +
   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.35, fill = "#FBC511", size = 0, data = estimate) +
   geom_line(data = estimate) +
+  geom_ribbon(aes(ymin = log(lower), ymax = log(upper), y = log(riskRatio)), alpha = 0.35, fill = "#69AED5", size = 0, data = kmEstimate) +
   geom_line(aes(y = log(riskRatio)), linewidth = 1, alpha = 0.7, data = kmEstimate) +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
