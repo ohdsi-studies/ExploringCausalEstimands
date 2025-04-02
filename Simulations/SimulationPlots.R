@@ -277,7 +277,7 @@ kmEstimate <- kmEstimate |>
 ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
   geom_hline(yintercept = 0) +
   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.35, fill = "#FBC511", size = 0, data = estimate) +
-  geom_line(data = estimate) +
+  geom_line(linewidth = 1, alpha = 0.7, data = estimate) +
   geom_ribbon(aes(ymin = log(lower), ymax = log(upper), y = log(riskRatio)), alpha = 0.35, fill = "#69AED5", size = 0, data = kmEstimate) +
   geom_line(aes(y = log(riskRatio)), linewidth = 1, alpha = 0.7, data = kmEstimate) +
   geom_line(linewidth = 1, alpha = 0.7) +
