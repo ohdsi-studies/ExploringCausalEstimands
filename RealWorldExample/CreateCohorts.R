@@ -1,4 +1,4 @@
-source("SetConnectionDetails.R")
+source("RealWorldExample/SetConnectionDetails.R")
 
 # Cohort definitions have already been saved, so commenting out fetching them
 # from WebAPI:

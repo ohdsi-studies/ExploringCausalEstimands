@@ -1,4 +1,4 @@
-source("SetConnectionDetails.R")
+source("RealWorldExample/SetConnectionDetails.R")
 library(CohortMethod)
 library(survival)
 
