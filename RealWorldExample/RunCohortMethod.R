@@ -77,6 +77,13 @@ result <- runCmAnalyses(
   multiThreadingSettings = multiThreadingSettings
 )
 
+# Compute follup-time ----------------------------------------------------------
+ref <- getFileReference(outputFolder)
+studyPop <- readRDS(file.path(outputFolder, ref$strataFile[1]))
+quantile(studyPop$timeAtRisk, c(0.25, 0.5, 0.75, 0.9, 0.95, 1))
+# 25%  50%  75% 100% 
+#   52  132  386 6622 
+
 # Compute risk ratios using weighted KM estimator ------------------------------
 computeWeights <- function(data) {
   weights <- ifelse(data$treatment == 1,
@@ -230,4 +237,74 @@ for (i in 56:nrow(ref)) {
 }
 estimates <- do.call(rbind, estimates)
 saveRDS(estimates, file.path(outputFolder, "rrEstimatesMatched.rds"))
+snow::stopCluster(cluster)
+
+# Compute risk ratios in matched population at 4 years ------
+calc_rate_ratio <- function(data, indices) {
+  require(survival)
+  sampled_data <- data[indices, ]
+  if (sum(sampled_data$y[sampled_data$treatment == 1]) == 0 |
+      sum(sampled_data$y[sampled_data$treatment == 0]) == 0) {
+    return(1)
+  }
+  
+  # Fit Kaplan-Meier for treated group
+  idx <- sampled_data$treatment == 1
+  kmTreated <- survfit(Surv(survivalTime, y) ~ 1,
+                       data = sampled_data[idx, ])
+  
+  # Fit Kaplan-Meier for control group
+  idx <- sampled_data$treatment == 0
+  kmControl <- survfit(Surv(survivalTime, y) ~ 1,
+                       data = sampled_data[idx, ])
+  
+  timePoint <- 4*365.25
+  riskTreated <- 1 - summary(kmTreated, time = timePoint)$surv
+  riskControl <- 1 - summary(kmControl, time = timePoint)$surv
+  rr <- riskTreated / riskControl
+  return(rr)
+}
+
+cluster <- snow::makeCluster(10, type = "SOCK")
+
+ref <- getFileReference(outputFolder)
+estimates <- list()
+for (i in 1:nrow(ref)) {
+  print(i)
+  population <- readRDS(file.path(outputFolder, ref$strataFile[i]))
+  population$y <- population$outcomeCount > 0
+  if (sum(population$y[population$treatment == 1]) == 0 |
+      sum(population$y[population$treatment == 0]) == 0) {
+    estimates[[length(estimates) + 1]] <- data.frame(
+      outcomeId = ref$outcomeId[i],
+      rr = as.numeric(NA),
+      lb = as.numeric(NA),
+      ub = as.numeric(NA),
+      logRr = as.numeric(NA),
+      seLogRr = as.numeric(NA)
+    )
+  } else {
+    population$treatment <- as.factor(population$treatment)  # Ensure treatment is a factor
+    
+    boot_results <- boot::boot(data = population,
+                               statistic = calc_rate_ratio,
+                               R = 1000,
+                               parallel = "snow",
+                               ncpus = 10,
+                               cl = cluster)
+    ci <- boot::boot.ci(boot_results, type = "perc")
+    ci <- ci$percent[c(4, 5)]
+    rateRatio <- boot_results$t0
+    estimates[[length(estimates) + 1]] <- data.frame(
+      outcomeId = ref$outcomeId[i],
+      rr = rateRatio,
+      lb = ci[1],
+      ub = ci[2],
+      logRr = log(rateRatio),
+      seLogRr = (ci[2] - ci[1]) / (2 * qnorm(0.975))
+    )
+  }
+}
+estimates <- do.call(rbind, estimates)
+saveRDS(estimates, file.path(outputFolder, "rrEstimatesMatched4Years.rds"))
 snow::stopCluster(cluster)
