@@ -13,10 +13,18 @@ hrEstimates <- CohortMethod::getResultsSummary(outputFolder) |>
   arrange(outcomeId) |>
   mutate(valid = !is.na(seLogRr) & !is.infinite(seLogRr) & seLogRr != 0) |>
   mutate(seLogRr = if_else(valid, seLogRr, 999))
-rrEstimates <- readRDS(file.path(outputFolder, "rrEstimatesMatched.rds")) |>
+# rrEstimates <- readRDS(file.path(outputFolder, "rrEstimatesMatched4Years.rds")) |>
+# rrEstimates <- readRDS(file.path(outputFolder, "rrEstimates.rds")) |>
+#   arrange(outcomeId) |>
+#   mutate(valid = !is.na(seLogRr) & !is.infinite(seLogRr) & seLogRr != 0) |>
+#   mutate(seLogRr = if_else(valid, seLogRr, 999))
+rrEstimates <- readRDS(file.path(outputFolder, "rrEstimatesWeighted.rds")) |>
   arrange(outcomeId) |>
+  select(logRr, seLogRr = seLogRrNormal, lb = lbNormal, ub = ubNormal) |>
   mutate(valid = !is.na(seLogRr) & !is.infinite(seLogRr) & seLogRr != 0) |>
   mutate(seLogRr = if_else(valid, seLogRr, 999))
+
+
 
 mean(hrEstimates$valid)
 mean(rrEstimates$valid)
