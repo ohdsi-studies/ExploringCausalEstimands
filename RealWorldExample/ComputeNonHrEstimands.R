@@ -24,12 +24,14 @@ for (i in 1:nrow(ref)) {
     bootstrapSize = bootstrapSize,
     cluster = cluster
   )
-  estimate <- estimates |>
-    mutate(ncoId = i)
+  estimates <- estimates |>
+    mutate(targetId = ref$targetId[i],
+           comparatorId = ref$comparatorId[i],
+           outcomeId = ref$outcomeId[i])
   allEstimates[[i]] <- estimates
 }
 allEstimates <- do.call(rbind, allEstimates)
-saveRDS(estimates, "RealWorldExample/rrEstimatesWeighted.rds")
+saveRDS(allEstimates, "RealWorldExample/rrEstimatesWeighted.rds")
 
 # Using matching ---------------------------------------------------------------
 allEstimates <- list()
@@ -50,7 +52,7 @@ for (i in 1:nrow(ref)) {
   allEstimates[[i]] <- estimates
 }
 allEstimates <- do.call(rbind, allEstimates)
-saveRDS(allEstimates,  "RealWorldExample/rrEstimatesMatching.rds")
+saveRDS(allEstimates,  "RealWorldExample/nonHrEstimatesMatching.rds")
 
 
 ParallelLogger::stopCluster(cluster)
