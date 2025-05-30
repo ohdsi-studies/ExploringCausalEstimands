@@ -1,33 +1,18 @@
 # Code to generate plots for comparing different estimands
+source("Simulations/SimulationFunctions.R")
 
 library(survival)
 library(ggplot2)
 library(dplyr)
 library(Cyclops)
 
-n <- 2500                  # Number of persons to simulate
-pA <- 0.5                  # Probability of being exposed
-lambdaBaselineHazard <- 50 # Scale parameter for the baseline hazard
-kBaselineHazard <- 1       # Shape parameter for the baseline hazard
-censorHazard <- 0.01       # Daily probability of being censored
-pSusceptible <- 0.20       # Probability of being susceptible to exposure effect     
-lambdaLogHr <- 10          # Scale parameter for the hazard ratio
-kLogHr <- 1.5              # Shape parameter for the hazard ratio
-multiplierLogHr <- 25      # Multiplier for the hazard ratio
-
-baselineHazardFunction <- function(t) {
-  dweibull(t, kBaselineHazard, lambdaBaselineHazard)
-}
-
-logHrFunction <- function(t) {
-  multiplierLogHr * dweibull(t, kLogHr, lambdaLogHr)
-}
+settings <- createSimulationSettings()
 
 # Plots of the generative process -------------------------------
 x <- 0:100
 vizData <- tibble(
   x = x,
-  y = baselineHazardFunction(x)
+  y = settings$baselineHazardFunction(x)
 )
 ggplot(vizData, aes(x = x, y = y)) +
   geom_line(color = "#336B91", linewidth = 1) +
@@ -44,7 +29,7 @@ ggsave(filename = "Simulations/BaselineHazard.png", width = 5, height = 3.5, dpi
 vizData <- bind_rows(
   tibble(
     x = x,
-    y = logHrFunction(x),
+    y = settings$logHrFunction(x),
     label = "Within susceptibles"
   )
 )
@@ -62,56 +47,28 @@ ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
 ggsave(filename = "Simulations/HazardRatio.png", width = 7, height = 3.5, dpi = 300)
 
 # Simulation ---------------------------------------------------------
-set.seed(123)
-a <- rbinom(n, 1, pA)
-susceptible <- rbinom(n, 1, pSusceptible)
+population <- simulatePopulation(settings, seed = 123)
 
-atRisk <- rep(TRUE, n)
-survivalTime <- rep(1001, n)
-y <- rep(0, n)
-averageLogHr <- 0
-denominator <- 0
-targetOverTimme <- rep(NA, 1000)
-targetSusceptiblesOverTime <- rep(NA, 1000)
-for (t in seq_len(1000)) {
-  nAtRisk <- sum(atRisk)
-  if (nAtRisk == 0) {
-    break
-  }
-  targetOverTime[t] <- sum(atRisk & a)
-  targetSusceptiblesOverTime[t] <- sum(atRisk & a & susceptible)
-  
-  baselineHazard <- dweibull(t, kBaselineHazard, lambdaBaselineHazard)  
-  logHr <- multiplierLogHr * dweibull(t, kLogHr, lambdaLogHr)  
-  averageLogHr <- averageLogHr + logHr * nAtRisk
-  denominator <- denominator + nAtRisk
-  hazard <- ifelse(a[atRisk] == 1 & susceptible[atRisk] == 1, exp(logHr) * baselineHazard, baselineHazard)
-  outcome <- runif(nAtRisk) < hazard
-  censored <- runif(nAtRisk) < censorHazard
-  noLongerAtRisk <- outcome | censored
-  survivalTime[atRisk][noLongerAtRisk] <- t
-  y[atRisk] <- outcome
-  atRisk[atRisk] <- !noLongerAtRisk
-}
-averageLogHr <- averageLogHr / denominator
-cyclopsData <- createCyclopsData(Surv(survivalTime, y) ~ a, modelType = "cox")
+cyclopsData <- createCyclopsData(Surv(survivalTime, y) ~ a, modelType = "cox", data = population)
 fit <- fitCyclopsModel(cyclopsData)
 hr <- exp(coef(fit))
 ci <- exp(confint(fit, parm = "a")[c(2, 3)])
-fit <- coxph(Surv(survivalTime, y) ~ a)
-ci <- exp(confint(fit))
+# fit <- coxph(Surv(survivalTime, y) ~ a, data = population)
+# ci <- exp(confint(fit))
 print(sprintf("Hazard ratio = %0.2f (95%% CI: %0.2f - %0.2f)",
               hr,
               ci[1],
               ci[2]))
-# [1] "Hazard ratio = 1.22 (95% CI: 1.15 - 1.29)"
+# [1] "Hazard ratio = 1.27 (95% CI: 1.13 - 1.42)"
 
 # Plots of estimates -------------------------------------------------------------------------------
 
 # Depletion of susceptibles
+targetSusceptiblesOverTime <- attr(population, "targetSusceptiblesOverTime")
+targetOverTime <- attr(population, "targetOverTime")
 vizData <- tibble(
   x = x,
-  y = c(pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100])
+  y = c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100])
 )
 ggplot(vizData, aes(x = x, y = y)) +
   geom_hline(yintercept = 0) +
@@ -129,17 +86,17 @@ ggsave(filename = "Simulations/FractionSusceptible.png", width = 5, height = 3.5
 vizData <- bind_rows(
   tibble(
     x = x,
-    y = logHrFunction(x),
+    y = settings$logHrFunction(x),
     label = "Within susceptibles"
   ),
   tibble(
     x = x,
-    y = logHrFunction(x) * c(pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
+    y = settings$logHrFunction(x) * c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
     label = "Average over target"
   ),
   tibble(
     x = x,
-    y = logHrFunction(x) * pSusceptible,
+    y = settings$logHrFunction(x) * settings$pSusceptible,
     label = "Average without depletion"
   )
 )
@@ -180,7 +137,7 @@ ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
 ggsave(filename = "Simulations/HazardRatioWithEstimate.png", width = 7, height = 3.5, dpi = 300)
 
 # KM curves
-km <- survfit(Surv(survivalTime, y) ~ a)
+km <- survfit(Surv(survivalTime, y) ~ a, data = population)
 kms <- summary(km)
 targetIdx <- kms$strata == "a=1"
 timeIdx <- kms$time <= 100
@@ -216,62 +173,31 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
 ggsave(filename = "Simulations/KaplanMeier.png", width = 5, height = 3.5, dpi = 300)
 
 # Risk ratio over time
+source("Common/FunctionsForNonHrEstimands.R")
+cluster <- ParallelLogger::makeCluster(10)
+kmEstimate <-computeEstimands(population, timePoints = 1:100, bootstrapSize = 200, cluster = cluster)
+ParallelLogger::stopCluster(cluster)
+
 vizData <- bind_rows(
   tibble(
     x = x,
-    y = logHrFunction(x),
+    y = settings$logHrFunction(x),
     label = "Within susceptibles"
   ),
   tibble(
     x = x,
-    y = logHrFunction(x) * c(pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
+    y = settings$logHrFunction(x) * c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
     label = "Average over target"
   ),
   tibble(
     x = x,
-    y = logHrFunction(x) * pSusceptible,
+    y = settings$logHrFunction(x) * settings$pSusceptible,
     label = "Average without depletion"
   )
 )
-calculate_rr_bootstrap <- function(data, sample = FALSE) {
-  if (sample) {
-    boot_data <- data[sample.int(nrow(data), nrow(data), replace = TRUE), ]
-  } else {
-    boot_data <- data
-  }
-  
-  boot_km <- survfit(Surv(survivalTime, y) ~ a, data = boot_data)
-  boot_kms <- summary(boot_km)
-  boot_kmsDf <- as_tibble(boot_kms[c("time", "surv", "strata")])
-  
-  boot_kmEstimate <- inner_join(
-    boot_kmsDf |>
-      filter(strata == "a=1", time <= 100) |>
-      transmute(pTarget = 1 - surv, x = time),
-    boot_kmsDf |>
-      filter(strata == "a=0", time <= 100) |>
-      transmute(pComparator = 1 - surv, x = time),
-    by = join_by(x)
-  ) |>
-    mutate(riskRatio = pTarget / pComparator) |>
-    right_join(tibble(x = 1:100), by = join_by(x)) |>
-    arrange(x) |>
-    select(x, riskRatio) |>
-    mutate(riskRatio = if_else(is.na(riskRatio) & x == 1, 1, riskRatio)) |> 
-    tidyr::fill(riskRatio, .direction = "down") 
-  
-  return(boot_kmEstimate)
-}
-data = data.frame(survivalTime, y, a)
-kmEstimate <- calculate_rr_bootstrap(data)
-bootstrap <- lapply(1:1000, function(x) calculate_rr_bootstrap(data, sample = TRUE))
-bootstrap <- bind_rows(bootstrap)
-ci <- bootstrap |>
-  group_by(x) |>
-  summarise(lower = quantile(riskRatio, 0.025),
-            upper = quantile(riskRatio, 0.975))
+
 kmEstimate <- kmEstimate |>
-  inner_join(ci, by = join_by(x)) |>
+  select(x = timePoint, riskRatio = rr, lower = lbRrAsymptotics, upper = ubRrAsymptotics) |>
   mutate(label = "KM risk ratio")
 
 ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +

@@ -69,6 +69,10 @@ computeEstimands <- function(population,
   }
   ParallelLogger::clusterRequire(cluster, "survival")
   ParallelLogger::clusterRequire(cluster, "dplyr")
+  if ("a" %in% colnames(population)) {
+    population <- population |>
+      rename(treatment = a)
+  }
   mainEstimates <- .calculateEstimands(NA, population, timePoints)
   bootStrap <- ParallelLogger::clusterApply(cluster, 
                                             seq_len(bootstrapSize), 
