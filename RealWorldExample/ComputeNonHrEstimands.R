@@ -44,11 +44,13 @@ for (i in 1:nrow(ref)) {
     cluster = cluster
   )
   estimates <- estimates |>
-    mutate(ncoId = i)
+    mutate(targetId = ref$targetId[i],
+           comparatorId = ref$comparatorId[i],
+           outcomeId = ref$outcomeId[i])
   allEstimates[[i]] <- estimates
 }
 allEstimates <- do.call(rbind, allEstimates)
-saveRDS(estimates,  "RealWorldExample/rrEstimatesMatching.rds")
+saveRDS(allEstimates,  "RealWorldExample/rrEstimatesMatching.rds")
 
 
 ParallelLogger::stopCluster(cluster)

@@ -80,19 +80,19 @@ computeEstimands <- function(population,
   estimates <- bootStrap |>
     group_by(timePoint) |>
     summarise(
-      seLogRrNormal = sqrt(var(log(rr))),
-      lbRrPercentile = quantile(rr, 0.025),
-      ubRrPercentile = quantile(rr, 0.975),
-      seRdNormal = sqrt(var(rd)),
-      lbRdPercentile = quantile(rd, 0.025),
-      ubRdPercentile = quantile(rd, 0.975),
+      seLogRrAsymptotics = sqrt(var(log(rr), na.rm = TRUE)),
+      lbRrPercentile = quantile(rr, 0.025, na.rm = TRUE),
+      ubRrPercentile = quantile(rr, 0.975, na.rm = TRUE),
+      seRdAsymptotics = sqrt(var(rd, na.rm = TRUE)),
+      lbRdPercentile = quantile(rd, 0.025, na.rm = TRUE),
+      ubRdPercentile = quantile(rd, 0.975, na.rm = TRUE),
     ) |>
     inner_join(mainEstimates, by = join_by(timePoint)) |>
     mutate(
-      lbRrAsymptotics = exp(log(rr) + qnorm(0.025) * seLogRrNormal),
-      ubRrAsymptotics = exp(log(rr) + qnorm(0.975) * seLogRrNormal),
-      lbRdAsymptotics = exp(rd + qnorm(0.025) * seRdNormal),
-      ubRdAsymptotics = exp(rd + qnorm(0.975) * seRdNormal),
+      lbRrAsymptotics = exp(log(rr) + qnorm(0.025) * seLogRrAsymptotics),
+      ubRrAsymptotics = exp(log(rr) + qnorm(0.975) * seLogRrAsymptotics),
+      lbRdAsymptotics = rd + qnorm(0.025) * seRdAsymptotics,
+      ubRdAsymptotics = rd + qnorm(0.975) * seRdAsymptotics,
       seLogRrPercentile = (log(ubRrPercentile) - log(lbRrPercentile)) / (2 * qnorm(0.975)),
       seRdPercentile = (ubRdPercentile - lbRdPercentile) / (2 * qnorm(0.975))
     )

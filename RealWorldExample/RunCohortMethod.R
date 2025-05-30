@@ -77,6 +77,11 @@ result <- runCmAnalyses(
   multiThreadingSettings = multiThreadingSettings
 )
 
+# Save estimates ---------------------------------------------------------------
+hrEstimates <- getResultsSummary(outputFolder) |>
+  select(targetId, comparatorId, outcomeId, logRr, seLogRr, ci95Lb, ci95Ub, p, mdrr)
+saveRDS(hrEstimates, "RealWorldExample/hrEstimates.rds")
+
 # Compute follup-time ----------------------------------------------------------
 ref <- getFileReference(outputFolder)
 studyPop <- readRDS(file.path(outputFolder, ref$strataFile[1]))

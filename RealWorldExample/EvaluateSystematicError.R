@@ -1,82 +1,71 @@
-source("RealWorldExample/SetConnectionDetails.R")
 library(dplyr)
 
+mdrrTheshold <- 2
+
+hrEstimates <- readRDS("RealWorldExample/hrEstimates.rds")
+nonHrEstimates <- readRDS("RealWorldExample/nonHrEstimatesMatching.rds")
+
+# Restrict to TCOs having sufficient power -------------------------------------
+valid <- hrEstimates |>
+  filter(mdrr < mdrrTheshold) |>
+  select("targetId", "comparatorId", "outcomeId")
+
+hrEstimates <- hrEstimates |>
+  inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId"))
+nonHrEstimates <- nonHrEstimates |>
+  inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId"))
+
+# Pivot:
+nonHrEstimates <- bind_rows(
+    nonHrEstimates |>
+      select(targetId, comparatorId, outcomeId, timePoint, estimate = rr, lb = lbRrPercentile, ub = ubRrPercentile, se = seLogRrPercentile) |>
+      mutate(estimand = "rr", method = "percentile"),
+    nonHrEstimates |>
+      select(targetId, comparatorId, outcomeId, timePoint, estimate = rd, lb = lbRdPercentile, ub = ubRdPercentile, se = seRdPercentile) |>
+      mutate(estimand = "rd", method = "percentile"),
+    nonHrEstimates |>
+      select(targetId, comparatorId, outcomeId, timePoint, estimate = rr, lb = lbRrAsymptotics, ub = ubRrAsymptotics, se = seLogRrNormal) |>
+      mutate(estimand = "rr", method = "asymptotics"),
+    nonHrEstimates |>
+      select(targetId, comparatorId, outcomeId, timePoint, estimate = rd, lb = lbRdAsymptotics, ub = ubRdAsymptotics, se = seRdNormal) |>
+      mutate(estimand = "rd", method = "asymptotics")
+  )
+
+# Compute metrics --------------------------------------------------------------
+
+computeType1Error <- function(lb, ub, h0 = 1) {
+  rejectNull <- (!is.na(lb) & h0 < lb) | (!is.na(ub) & h0 > ub)
+  return(mean(rejectNull))
+}
 
 computeMeanPrecision <- function(seLogRr) {
-  # idx <- is.na(seLogRr) | is.infinite(seLogRr) | seLogRr == 0
-  # seLogRr[idx] <- 999
+  seLogRr[is.na(seLogRr)] <- 999
   precision <- 1 / seLogRr^2
   return(exp(mean(log(precision))))
 }
 
-hrEstimates <- CohortMethod::getResultsSummary(outputFolder) |>
-  arrange(outcomeId) |>
-  mutate(valid = !is.na(seLogRr) & !is.infinite(seLogRr) & seLogRr != 0) |>
-  mutate(seLogRr = if_else(valid, seLogRr, 999))
-# rrEstimates <- readRDS(file.path(outputFolder, "rrEstimatesMatched4Years.rds")) |>
-# rrEstimates <- readRDS(file.path(outputFolder, "rrEstimates.rds")) |>
-#   arrange(outcomeId) |>
-#   mutate(valid = !is.na(seLogRr) & !is.infinite(seLogRr) & seLogRr != 0) |>
-#   mutate(seLogRr = if_else(valid, seLogRr, 999))
-rrEstimates <- readRDS(file.path(outputFolder, "rrEstimatesWeighted.rds")) |>
-  arrange(outcomeId) |>
-  select(logRr, seLogRr = seLogRrNormal, lb = lbNormal, ub = ubNormal) |>
-  mutate(valid = !is.na(seLogRr) & !is.infinite(seLogRr) & seLogRr != 0) |>
-  mutate(seLogRr = if_else(valid, seLogRr, 999))
+computeEase <- function(logRr, seLogRr) {
+  null <- EmpiricalCalibration::fitMcmcNull(logRr, seLogRr)
+  ease <- EmpiricalCalibration::computeExpectedAbsoluteSystematicError(null)
+  return(ease$ease)
+}
+
+hrEstimates |>
+  summarise(
+    count = n(),
+    type1Error = computeType1Error(ci95Lb, ci95Ub, h0 = 1),
+    meanPrecision = computeMeanPrecision(seLogRr),
+    ease = computeEase(logRr, seLogRr)
+  )
+
+nonHrEstimates |>
+  group_by(timePoint, estimand, method) |>
+  summarise(
+    count = n(),
+    type1Error = computeType1Error(lb, ub, h0 = if_else(estimand == "rr", 1, 0)),
+    meanPrecision = computeMeanPrecision(se),
+    ease = computeEase(if_else(estimand == "rr", log(estimate), estimate), se),
+    .groups = "drop"
+  )
 
 
-
-mean(hrEstimates$valid)
-mean(rrEstimates$valid)
-sum(hrEstimates$valid)
-sum(rrEstimates$valid)
-
-idxBothValid <- hrEstimates$valid & rrEstimates$valid
-mean(idxBothValid)
-
-hrEstimates <- hrEstimates[idxBothValid, ]
-rrEstimates <- rrEstimates[idxBothValid, ]
-
-null <- EmpiricalCalibration::fitMcmcNull(hrEstimates$logRr, hrEstimates$seLogRr)
-EmpiricalCalibration::plotCalibrationEffect(hrEstimates$logRr,
-                                            hrEstimates$seLogRr,
-                                            showCis = TRUE,
-                                            showExpectedAbsoluteSystematicError = TRUE,
-                                            null = null,
-                                            xLabel = "Hazard Ratio",
-                                            fileName = "hrEstimates.png")
-ease <- EmpiricalCalibration::computeExpectedAbsoluteSystematicError(null)
-writeLines(sprintf("Type 1 error: %0.1f%%. Mean precision: %0.2f. EASE: %0.2f (%0.2f - %0.2f)", 
-                   100*mean(hrEstimates$p < 0.05, na.rm = TRUE),
-                   computeMeanPrecision(hrEstimates$seLogRr),
-                   ease$ease, 
-                   ease$ciLb, 
-                   ease$ciUb))
-# Type 1 error: 15.1%. Mean precision: 41.91. EASE: 0.07 (0.05 - 0.11)
-
-
-null <- EmpiricalCalibration::fitMcmcNull(rrEstimates$logRr, hrEstimates$seLogRr)
-EmpiricalCalibration::plotCalibrationEffect(rrEstimates$logRr,
-                                            rrEstimates$seLogRr,
-                                            showCis = TRUE,
-                                            showExpectedAbsoluteSystematicError = TRUE,
-                                            null = null,
-                                            xLabel = "Relative Risk (first 365 days)",
-                                            fileName = "rrEstimatesMatched.png")
-ease <- EmpiricalCalibration::computeExpectedAbsoluteSystematicError(null)
-writeLines(sprintf("Type 1 error: %0.1f%%. Mean precision: %0.2f. EASE: %0.2f (%0.2f - %0.2f)", 
-                   100*mean(rrEstimates$lb > 1 | rrEstimates$ub < 1, na.rm = TRUE),
-                   computeMeanPrecision(rrEstimates$seLogRr),
-                   ease$ease, 
-                   ease$ciLb, 
-                   ease$ciUb))
-# Type 1 error: 15.1%. Mean precision: 16.89. EASE: 0.07 (0.05 - 0.11)
-
-
-# rrEstimates <- readRDS(file.path(outputFolder, "rrEstimates.rds"))
-# EmpiricalCalibration::plotCalibrationEffect(rrEstimates$logRr,
-#                                             rrEstimates$seLogRr,
-#                                             showCis = TRUE,
-#                                             showExpectedAbsoluteSystematicError = TRUE,
-#                                             xLabel = "Relative Risk (first 365 days)",
-#                                             fileName = "rrEstimates.png")
