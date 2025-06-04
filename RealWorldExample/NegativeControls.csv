@@ -1,0 +1,223 @@
+indicationId,conceptId,outcomeName
+Depression,73008,Enthesopathy
+Depression,74855,Genital herpes simplex
+Depression,75354,Osteochondropathy
+Depression,75576,Irritable bowel syndrome
+Depression,77650,Aseptic necrosis of bone
+Depression,81893,Ulcerative colitis
+Depression,134461,Tietze's disease
+Depression,139099,Ingrowing nail
+Depression,140480,Impetigo
+Depression,141932,Seborrheic keratosis
+Depression,192606,Paraplegia
+Depression,196236,Septic shock
+Depression,196456,Gallstone
+Depression,200775,Endometrial hyperplasia
+Depression,201606,Crohn's disease
+Depression,253954,Pulmonary tuberculosis
+Depression,254443,Sjogren's syndrome
+Depression,260134,Croup
+Depression,373478,Presbyopia
+Depression,374923,Bell's palsy
+Depression,378424,Astigmatism
+Depression,380038,Viral conjunctivitis
+Depression,380688,Hypoglycemic coma
+Depression,381581,Chalazion
+Depression,432595,Amyloidosis
+Depression,434926,Iridocyclitis
+Depression,436634,Acariasis
+Depression,437082,Ankylosing spondylitis
+Depression,438531,Chondromalacia
+Depression,438688,Sarcoidosis
+Depression,440638,Lyme disease
+Depression,441589,Endocarditis
+Depression,441788,Human papilloma virus infection
+Depression,441818,Hemangioma
+Depression,443285,Lesion of cervix
+Depression,443767,Diabetic oculopathy
+Depression,4030042,Toxic goiter
+Depression,4038835,Hodgkin's disease
+Depression,4050747,Fracture of upper limb
+Depression,4087647,Rectal mass
+Depression,4110709,Benign epithelial neoplasm of skin
+Depression,4112731,Polyp of intestine
+Depression,4134455,Mononeuropathy
+Depression,4156115,Malignant neoplasm of endocrine gland
+Depression,4169984,Scar
+Depression,4215978,Onychomycosis
+Depression,4234533,Tonsillitis
+Depression,4248870,Visceroptosis
+Depression,4249170,Epicondylitis
+Depression,4254542,Hypopituitarism
+Depression,4291005,Viral hepatitis
+Depression,4345472,Epstein-Barr virus disease
+Hypertension,72748,Strain of rotator cuff capsule
+Hypertension,73241,Anal and rectal polyp
+Hypertension,73560,Calcaneal spur
+Hypertension,75911,Acquired hallux valgus
+Hypertension,76786,Derangement of knee
+Hypertension,77965,Acquired trigger finger
+Hypertension,78619,Contusion of knee
+Hypertension,81151,Sprain of ankle
+Hypertension,81378,Chondromalacia of patella
+Hypertension,81634,Ptotic breast
+Hypertension,133655,Burn of forearm
+Hypertension,134438,Contact dermatitis
+Hypertension,136368,Non-toxic multinodular goiter
+Hypertension,137951,Acquired keratoderma
+Hypertension,139099,Ingrowing nail
+Hypertension,140641,Verruca vulgaris
+Hypertension,140648,Onychomycosis due to dermatophyte
+Hypertension,140842,Changes in skin texture
+Hypertension,141932,Senile hyperkeratosis
+Hypertension,194083,Vaginitis and vulvovaginitis
+Hypertension,195873,Leukorrhea
+Hypertension,196168,Irregular periods
+Hypertension,199192,Abrasion and/or friction burn of trunk without infection
+Hypertension,201606,Crohn's disease
+Hypertension,259995,Foreign body in orifice
+Hypertension,373478,Presbyopia
+Hypertension,374375,Impacted cerumen
+Hypertension,376707,Acute conjunctivitis
+Hypertension,377572,Noise effects on inner ear
+Hypertension,378427,Tear film insufficiency
+Hypertension,380706,Regular astigmatism
+Hypertension,432303,Cocaine abuse
+Hypertension,432593,Kwashiorkor
+Hypertension,433111,Effects of hunger
+Hypertension,433527,Endometriosis
+Hypertension,433577,Hammer toe
+Hypertension,434165,Abnormal cervical smear
+Hypertension,434203,Late effect of contusion
+Hypertension,434327,Cannabis abuse
+Hypertension,436409,Abnormal pupil
+Hypertension,437264,Tobacco dependence syndrome
+Hypertension,438130,Opioid abuse
+Hypertension,438329,Late effect of motor vehicle accident
+Hypertension,439790,Psychalgia
+Hypertension,440193,Wristdrop
+Hypertension,440329,Herpes zoster without complication
+Hypertension,441788,Human papilloma virus infection
+Hypertension,443172,"Splinter of face, without major open wound"
+Hypertension,444132,Injury of knee
+Hypertension,4012570,High risk sexual behavior
+Hypertension,4012934,Homocystinuria
+Hypertension,4083487,Macular drusen
+Hypertension,4088290,Absence of breast
+Hypertension,4091513,Passing flatus
+Hypertension,4092879,Absent kidney
+Hypertension,4092896,Feces contents abnormal
+Hypertension,4103640,Amputated foot
+Hypertension,4103703,Melena
+Hypertension,4115367,Wrist joint pain
+Hypertension,4115402,Difficulty sleeping
+Hypertension,4166231,Genetic predisposition
+Hypertension,4170770,Epidermoid cyst
+Hypertension,4201390,Colostomy present
+Hypertension,4201717,Ileostomy present
+Hypertension,4202045,Postviral fatigue syndrome
+Hypertension,4209423,Nicotine dependence
+Hypertension,4213540,Cervical somatic dysfunction
+Hypertension,4231770,Hereditary thrombophilia
+Hypertension,4344500,Impingement syndrome of shoulder region
+Hypertension,36713918,Somatic dysfunction of lumbar region
+Hypertension,40480893,Nonspecific tuberculin test reaction
+Hypertension,40481632,Ganglion cyst
+Hypertension,44783954,Acid reflux
+Hypertension,45757370,Disproportion of reconstructed breast
+Hypertension,46269889,Complication due to Crohn's disease
+Hypertension,46286594,Problem related to lifestyle
+Type2Diabetes,72748,Strain of rotator cuff capsule
+Type2Diabetes,73241,Anal and rectal polyp
+Type2Diabetes,73560,Calcaneal spur
+Type2Diabetes,75911,Acquired hallux valgus
+Type2Diabetes,76786,Derangement of knee
+Type2Diabetes,78619,Contusion of knee
+Type2Diabetes,81151,Sprain of ankle
+Type2Diabetes,81378,Chondromalacia of patella
+Type2Diabetes,81634,Ptotic breast
+Type2Diabetes,81878,Benign paroxysmal positional vertigo
+Type2Diabetes,133655,Burn of forearm
+Type2Diabetes,134438,Contact dermatitis
+Type2Diabetes,134765,Cachexia
+Type2Diabetes,136368,Non-toxic multinodular goiter
+Type2Diabetes,137951,Acquired keratoderma
+Type2Diabetes,139099,Ingrowing nail
+Type2Diabetes,140641,Verruca vulgaris
+Type2Diabetes,140842,Changes in skin texture
+Type2Diabetes,141932,Senile hyperkeratosis
+Type2Diabetes,199192,Abrasion and/or friction burn of trunk without infection
+Type2Diabetes,201606,Crohn's disease
+Type2Diabetes,258540,Marfan's syndrome
+Type2Diabetes,259995,Foreign body in orifice
+Type2Diabetes,373478,Presbyopia
+Type2Diabetes,374375,Impacted cerumen
+Type2Diabetes,374801,Foreign body in ear
+Type2Diabetes,377572,Noise effects on inner ear
+Type2Diabetes,377910,Deviated nasal septum
+Type2Diabetes,378427,Tear film insufficiency
+Type2Diabetes,380706,Regular astigmatism
+Type2Diabetes,381021,Lagophthalmos
+Type2Diabetes,432303,Cocaine abuse
+Type2Diabetes,432436,Symbolic dysfunction
+Type2Diabetes,432593,Kwashiorkor
+Type2Diabetes,432798,"Mechanical complication of internal orthopedic device, implant AND/OR graft"
+Type2Diabetes,433111,Effects of hunger
+Type2Diabetes,433244,Tooth loss
+Type2Diabetes,433527,Endometriosis
+Type2Diabetes,433577,Hammer toe
+Type2Diabetes,433951,Poisoning by tranquilizer
+Type2Diabetes,433997,Lymphangioma
+Type2Diabetes,434203,Late effect of contusion
+Type2Diabetes,434327,Cannabis abuse
+Type2Diabetes,434675,Complication of gastrostomy
+Type2Diabetes,436077,Developmental delay
+Type2Diabetes,436409,Abnormal pupil
+Type2Diabetes,436876,Toxic effect of lead compound
+Type2Diabetes,437092,Physiological development failure
+Type2Diabetes,437264,Tobacco dependence syndrome
+Type2Diabetes,437448,Exhaustion due to excessive exertion
+Type2Diabetes,438130,Opioid abuse
+Type2Diabetes,438329,Late effect of motor vehicle accident
+Type2Diabetes,439788,Galactosemia
+Type2Diabetes,439790,Psychalgia
+Type2Diabetes,439795,Minimal cognitive impairment
+Type2Diabetes,439935,Abnormal posture
+Type2Diabetes,440193,Wristdrop
+Type2Diabetes,440612,Toxic effect of tobacco and nicotine
+Type2Diabetes,443172,Splinter of face without major open wound
+Type2Diabetes,443585,Abrasion and/or friction burn of multiple sites
+Type2Diabetes,444132,Injury of knee
+Type2Diabetes,4012570,High risk sexual behavior
+Type2Diabetes,4012934,Homocystinuria
+Type2Diabetes,4019836,Social exclusion
+Type2Diabetes,4027782,Lipid storage disease
+Type2Diabetes,4051630,Malingering
+Type2Diabetes,4083487,Macular drusen
+Type2Diabetes,4088290,Absence of breast
+Type2Diabetes,4091513,Passing flatus
+Type2Diabetes,4092879,Absent kidney
+Type2Diabetes,4092896,Feces contents abnormal
+Type2Diabetes,4096540,Foreskin deficient
+Type2Diabetes,4103703,Melena
+Type2Diabetes,4115367,Wrist joint pain
+Type2Diabetes,4115402,Difficulty sleeping
+Type2Diabetes,4168318,Genetic disorder carrier
+Type2Diabetes,4170770,Epidermoid cyst
+Type2Diabetes,4201387,Tracheostomy present
+Type2Diabetes,4201390,Colostomy present
+Type2Diabetes,4202045,Postviral fatigue syndrome
+Type2Diabetes,4209423,Nicotine dependence
+Type2Diabetes,4216219,Bizarre personal appearance
+Type2Diabetes,4231770,Hereditary thrombophilia
+Type2Diabetes,4265896,Jellyfish poisoning
+Type2Diabetes,4299094,Opioid intoxication
+Type2Diabetes,4344500,Impingement syndrome of shoulder region
+Type2Diabetes,36713918,Somatic dysfunction of lumbar region
+Type2Diabetes,40480893,Nonspecific tuberculin test reaction
+Type2Diabetes,40481632,Ganglion cyst
+Type2Diabetes,40481897,Inadequate sleep hygiene
+Type2Diabetes,45757285,Unsatisfactory tooth restoration
+Type2Diabetes,45757370,Disproportion of reconstructed breast
+Type2Diabetes,45757682,Anomaly of jaw size
+Type2Diabetes,46269889,Complication due to Crohn's disease

@@ -1,47 +1,130 @@
 source("RealWorldExample/SetConnectionDetails.R")
+library(Capr)
+library(dplyr)
+library(CirceR)
 
-# Cohort definitions have already been saved, so commenting out fetching them
-# from WebAPI:
-# ROhdsiWebApi::authorizeWebApi(
-#   baseUrl = Sys.getenv("baseUrl"),
-#   authMethod = "windows"
-# )
-# cohortDefinitionSet <- ROhdsiWebApi::exportCohortDefinitionSet(
-#   baseUrl = Sys.getenv("baseUrl"),
-#   generateStats = FALSE,
-#   cohortIds = c(12676, 12672) # Thiazides, ACEi
-# )
-# saveRDS(cohortDefinitionSet, "cohortDefinitionSet.rds")
-cohortDefinitionSet = readRDS("cohortDefinitionSet.rds")
-
-negativeControlConceptIds <- c(72748,73241,73560,75911,76786,77965,78619,81151,81378,81634,133655,134438,136368,137951,139099,140641,140648,140842,141932,194083,195873,196168,199192,201606,259995,373478,374375,376707,377572,378427,380706,432303,432593,433111,433527,433577,434165,434203,434327,436409,437264,438130,438329,439790,440193,440329,441788,443172,444132,4012570,4012934,4083487,4088290,4091513,4092879,4092896,4103640,4103703,4115367,4115402,4149084,4166231,4170770,4180978,4201390,4201717,4202045,4209423,4213540,4231770,4344500,36713918,40480893,40481632,44783954,45757370,46269889,46286594)
+tcs <- readr::read_csv("RealWorldExample/TCs.csv", show_col_types = FALSE)
+negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
 
 connection <- connect(connectionDetails)
 
-cohortTableNames <- CohortGenerator::getCohortTableNames(cohortTable = cohortTable)
-CohortGenerator::createCohortTables(
-  connection = connection,
-  cohortDatabaseSchema = cohortDatabaseSchema,
-  cohortTableNames = cohortTableNames,
+indicationConceptSets <- list()
+# 1: MDD
+mdd <- cs(
+  descendants(4191716, 4212469, 4175329, 440383, 40546087), 
+  descendants(exclude(377527, 379784, 433440, 435520, 436665, 438727, 442306, 443864, 4224940, 4239471, 36684319, 40481798)),
+  name = "Major depressive disorder"
 )
+mdd <- getConceptSetDetails(mdd, connection, cdmDatabaseSchema)
+indicationConceptSets[["Depression"]] <- mdd
+
+# 2: Hypertension
+hypertensiveDisorder <- cs(
+  descendants(316866),
+  name = "Hypertensive disorder"
+)
+hypertensiveDisorder <- getConceptSetDetails(hypertensiveDisorder, connection, cdmDatabaseSchema)
+indicationConceptSets[["Hypertension"]] <- hypertensiveDisorder
+
+# 3: T2DM
+t2dm <- cs(
+  descendants(443238, 201820, 442793), 
+  descendants(exclude(195771, 201254, 435216, 761051, 4058243, 40484648)),
+  name = "Type 2 diabetes mellitus (diabetes mellitus excluding T1DM and secondary)"
+)
+t2dm <- getConceptSetDetails(t2dm, connection, cdmDatabaseSchema)
+indicationConceptSets[["T2DM"]] <- t2dm
+Type2Diabetes
+
+exposures <- bind_rows(
+  tcs |>
+    select(conceptId = targetId, name = targetName, indicationId),
+  tcs |>
+    select(conceptId = comparatorId, name = comparatorName, indicationId)
+)
+
+cohortDefinitionSet  <- list()
+for (i in seq_len(nrow(exposures))) {
+  drugConceptSet <- cs(
+    descendants(exposures$conceptId[i]),
+    name = exposures$name[i]
+  )
+  drugConceptSet <- getConceptSetDetails(drugConceptSet, connection, cdmDatabaseSchema)
+  
+  indicationConceptSet <- indicationConceptSets[[exposures$indicationId[i]]]
+  
+  newUserCohort <- cohort(
+    entry = entry(
+      drugExposure(drugConceptSet, firstOccurrence()),
+      observationWindow = continuousObservation(priorDays = 365)
+    ),
+    attrition = attrition(
+      "Has indication" = withAll(
+        atLeast(1, conditionOccurrence(indicationConceptSet), duringInterval(eventStarts(-365, 0)))
+      )
+    ),
+    exit = exit(endStrategy = drugExit(drugConceptSet, persistenceWindow = 30, surveillanceWindow = 0))
+  )
+  json <- as.json(newUserCohort)
+  cohortDefinitionSet [[i]] <- tibble(
+    cohortId = exposures$conceptId[i],
+    cohortName = exposures$name[i],
+    json = json,
+    sql = buildCohortQuery(json, createGenerateOptions(generateStats = FALSE))
+  )
+}
+
+# Generate cohorts -------------------------------------------------------------
+cohortTableNames <- CohortGenerator::getCohortTableNames(cohortTable)
+CohortGenerator::createCohortTables(
+  connection = connection, 
+  cohortDatabaseSchema = cohortDatabaseSchema,
+  cohortTableNames = cohortTableNames
+)
+
 CohortGenerator::generateCohortSet(
-  connection = connection,
-  cdmDatabaseSchema = cdmDatabaseSchema,
+  connection = connection, 
   cohortDatabaseSchema = cohortDatabaseSchema,
   cohortTableNames = cohortTableNames,
+  cdmDatabaseSchema = cdmDatabaseSchema,
   cohortDefinitionSet = cohortDefinitionSet
 )
+
+negativeControlOutcomeCohortSet <- negativeControls |>
+  mutate(cohortId = conceptId) |>
+  select("cohortId", cohortName = "outcomeName", outcomeConceptId = "conceptId") |>
+  filter(!duplicated(cohortId))
 CohortGenerator::generateNegativeControlOutcomeCohorts(
-  connection = connection,
-  cdmDatabaseSchema = cdmDatabaseSchema,
+  connection = connection, 
   cohortDatabaseSchema = cohortDatabaseSchema,
   cohortTable = cohortTable,
+  cdmDatabaseSchema = cdmDatabaseSchema,
+  negativeControlOutcomeCohortSet = negativeControlOutcomeCohortSet,
   occurrenceType = "first",
-  detectOnDescendants = TRUE,
-  negativeControlOutcomeCohortSet = data.frame(
-    cohortId = negativeControlConceptIds,
-    cohortName = negativeControlConceptIds,
-    outcomeConceptId = negativeControlConceptIds
-  )
+  detectOnDescendants = TRUE
 )
+
+# Count cohorts ----------------------------------------------------------------
+cohortCounts <- CohortGenerator::getCohortCounts(
+  connection = connection, 
+  cohortDatabaseSchema = cohortDatabaseSchema,
+  cohortTable = cohortTable
+)
+cohortCounts <- cohortCounts |>
+  inner_join(
+    bind_rows(
+      exposures |>
+        select(cohortId = "conceptId", cohortName = "name") |>
+        mutate(type = "exposure"),
+      negativeControlOutcomeCohortSet |>
+        select("cohortId", "cohortName") |>
+        mutate(type = "outcome")
+    ),
+    by = join_by("cohortId")
+  )
+if (!dir.exists(outputFolder)) {
+  dir.create(outputFolder, recursive = TRUE)
+}
+write_csv(cohortCounts, file.path(outputFolder, "cohortCounts.csv"))
+
 disconnect(connection)
