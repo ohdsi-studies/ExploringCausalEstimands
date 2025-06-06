@@ -9,7 +9,6 @@ negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", sho
 connection <- connect(connectionDetails)
 
 indicationConceptSets <- list()
-# 1: MDD
 mdd <- cs(
   descendants(4191716, 4212469, 4175329, 440383, 40546087), 
   descendants(exclude(377527, 379784, 433440, 435520, 436665, 438727, 442306, 443864, 4224940, 4239471, 36684319, 40481798)),
@@ -18,7 +17,6 @@ mdd <- cs(
 mdd <- getConceptSetDetails(mdd, connection, cdmDatabaseSchema)
 indicationConceptSets[["Depression"]] <- mdd
 
-# 2: Hypertension
 hypertensiveDisorder <- cs(
   descendants(316866),
   name = "Hypertensive disorder"
@@ -26,7 +24,6 @@ hypertensiveDisorder <- cs(
 hypertensiveDisorder <- getConceptSetDetails(hypertensiveDisorder, connection, cdmDatabaseSchema)
 indicationConceptSets[["Hypertension"]] <- hypertensiveDisorder
 
-# 3: T2DM
 t2dm <- cs(
   descendants(443238, 201820, 442793), 
   descendants(exclude(195771, 201254, 435216, 761051, 4058243, 40484648)),
@@ -34,7 +31,6 @@ t2dm <- cs(
 )
 t2dm <- getConceptSetDetails(t2dm, connection, cdmDatabaseSchema)
 indicationConceptSets[["T2DM"]] <- t2dm
-Type2Diabetes
 
 exposures <- bind_rows(
   tcs |>
@@ -73,6 +69,7 @@ for (i in seq_len(nrow(exposures))) {
     sql = buildCohortQuery(json, createGenerateOptions(generateStats = FALSE))
   )
 }
+cohortDefinitionSet <- bind_rows(cohortDefinitionSet)
 
 # Generate cohorts -------------------------------------------------------------
 cohortTableNames <- CohortGenerator::getCohortTableNames(cohortTable)
@@ -125,6 +122,6 @@ cohortCounts <- cohortCounts |>
 if (!dir.exists(outputFolder)) {
   dir.create(outputFolder, recursive = TRUE)
 }
-write_csv(cohortCounts, file.path(outputFolder, "cohortCounts.csv"))
+readr::write_csv(cohortCounts, file.path(outputFolder, "cohortCounts.csv"))
 
 disconnect(connection)
