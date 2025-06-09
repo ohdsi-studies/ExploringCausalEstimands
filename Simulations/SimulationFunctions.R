@@ -4,6 +4,7 @@ createSimulationSettings = function(
     n = 2500,                                                  # Number of persons to simulate
     pA = 0.5,                                                  # Probability of being exposed
     baselineHazardFunction = function(t) {dweibull(t, 1, 50)}, # Baseline hazard as a function of time
+    baselineHazardMultiplier = runif(n, 0.01, 1),              # For each subject, their multiplier for the hazard function
     censorHazard = 0.01,                                       # Daily probability of being censored
     pSusceptible = 0.20,                                       # Probability of being susceptible to exposure effect   
     logHrFunction = function(t) {25 * dweibull(t, 1.5, 10)},   # Log(hazard ratio) as a function of time 
@@ -16,6 +17,7 @@ createSimulationSettings = function(
     n = n,
     pA = pA,
     baselineHazardFunction = baselineHazardFunction,
+    baselineHazardMultiplier = baselineHazardMultiplier,
     censorHazard = censorHazard,
     pSusceptible = pSusceptible,
     logHrFunction = logHrFunction,
@@ -45,7 +47,7 @@ simulatePopulation <- function(settings, seed = NULL) {
     targetOverTime[t] <- sum(atRisk & a)
     targetSusceptiblesOverTime[t] <- sum(atRisk & a & susceptible)
     
-    baselineHazard <- settings$baselineHazardFunction(t)
+    baselineHazards <- settings$baselineHazardFunction(t) * settings$baselineHazardMultiplier
     if (is.null(settings$logHrFunction)) {
       logHr <- 0
     } else {
@@ -58,8 +60,8 @@ simulatePopulation <- function(settings, seed = NULL) {
       rd <- settings$rdFunction(t)
     }
     denominator <- denominator + nAtRisk
-    hazard <- ifelse(a[atRisk] == 1 & susceptible[atRisk] == 1, exp(logHr) * baselineHazard + rd, baselineHazard)
-    outcome <- runif(nAtRisk) < hazard
+    hazards <- ifelse(a[atRisk] == 1 & susceptible[atRisk] == 1, exp(logHr) * baselineHazards + rd, baselineHazards)
+    outcome <- runif(nAtRisk) < hazards
     censored <- runif(nAtRisk) < settings$censorHazard
     noLongerAtRisk <- outcome | censored
     survivalTime[atRisk][noLongerAtRisk] <- t

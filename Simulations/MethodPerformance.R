@@ -54,20 +54,34 @@ estimates |>
   group_by(timePoint) |>
   summarise(type1ErrorHr = mean(lbHr > 1 | ubHr < 1),
             type1ErrorRr = mean(lbRrAsymptotics > 1 | ubRrAsymptotics < 1),
-            type1ErrorRd = mean(lbRdAsymptotics > 0 | ubRdAsymptotics < 0))
-# # A tibble: 5 × 4
-# timePoint type1ErrorHr type1ErrorRr type1ErrorRd
-# <dbl>        <dbl>        <dbl>        <dbl>
-# 1       180        0.055        0.064        0.064
-# 2       365        0.055        0.06         0.056
-# 3       730        0.055        0.06         0.056
-# 4      1095        0.055        0.06         0.056
-# 5      1460        0.055        0.06         0.056
+            type1ErrorRd = mean(lbRdAsymptotics > 0 | ubRdAsymptotics < 0),
+            type1ErrorRrPerc = mean(lbRrPercentile > 1 | ubRrPercentile < 1),
+            type1ErrorRdPerc = mean(lbRdPercentile > 0 | ubRdPercentile < 0))
+# Random hazard multiplier:
+# # A tibble: 5 × 6
+# timePoint type1ErrorHr type1ErrorRr type1ErrorRd type1ErrorRrPerc type1ErrorRdPerc
+# <dbl>        <dbl>        <dbl>        <dbl>            <dbl>            <dbl>
+# 1       180        0.039        0.053        0.054            0.057            0.057
+# 2       365        0.039        0.054        0.054            0.056            0.056
+# 3       730        0.039        0.053        0.053            0.057            0.057
+# 4      1095        0.039        0.053        0.053            0.057            0.057
+# 5      1460        0.039        0.053        0.053            0.057            0.057
+
+# Fixed hazard multiplier:
+# # A tibble: 5 × 6
+# timePoint type1ErrorHr type1ErrorRr type1ErrorRd type1ErrorRrPerc type1ErrorRdPerc
+# <dbl>        <dbl>        <dbl>        <dbl>            <dbl>            <dbl>
+# 1       180        0.055        0.064        0.064            0.065            0.065
+# 2       365        0.055        0.06         0.056            0.068            0.068
+# 3       730        0.055        0.06         0.056            0.068            0.068
+# 4      1095        0.055        0.06         0.056            0.068            0.068
+# 5      1460        0.055        0.06         0.056            0.068            0.068
 
 # Simulate when true effect one the (non-constant) hazard ratio scale ------------------------------
 settings <- createSimulationSettings()
 estimates <- ParallelLogger::clusterApply(cluster, seq_len(sampleSize), simulateOne, settings = settings)
 estimates <- bind_rows(estimates)
+
 
 estimates |>
   group_by(timePoint) |>
@@ -76,6 +90,17 @@ estimates |>
             type2ErrorRd = mean(lbRdAsymptotics < 0 & ubRdAsymptotics > 0),
             type2ErrorRrPerc = mean(lbRrPercentile < 1 & ubRrPercentile > 1),
             type2ErrorRdPerc = mean(lbRdPercentile < 0 & ubRdPercentile > 0))
+# Random hazard multiplier:
+# # A tibble: 5 × 6
+# timePoint type2ErrorHr type2ErrorRr type2ErrorRd type2ErrorRrPerc type2ErrorRdPerc
+# <dbl>        <dbl>        <dbl>        <dbl>            <dbl>            <dbl>
+# 1       180        0.109        0.554        0.548            0.537            0.537
+# 2       365        0.109        0.631        0.628            0.599            0.599
+# 3       730        0.109        0.634        0.631            0.602            0.602
+# 4      1095        0.109        0.634        0.631            0.602            0.602
+# 5      1460        0.109        0.634        0.631            0.602            0.602
+
+# Fixed hazard multiplier:
 # # A tibble: 5 × 6
 # timePoint type2ErrorHr type2ErrorRr type2ErrorRd type2ErrorRrPerc type2ErrorRdPerc
 # <dbl>        <dbl>        <dbl>        <dbl>            <dbl>            <dbl>
@@ -85,7 +110,7 @@ estimates |>
 # 4      1095        0.024        0.615        0.612            0.602            0.602
 # 5      1460        0.024        0.615        0.612            0.602            0.602
 
-# Simulate when true effect one the (non-constant) risk difference scale ---------------------------
+# Simulate when true effect on the (non-constant) risk difference scale ----------------------------
 settings <- createSimulationSettings(
   rdFunction = function(t) {dweibull(t, 1, 10)},
   logHrFunction = NULL
@@ -100,17 +125,24 @@ estimates |>
             type2ErrorRd = mean(lbRdAsymptotics < 0 & ubRdAsymptotics > 0),
             type2ErrorRrPerc = mean(lbRrPercentile < 1 & ubRrPercentile > 1),
             type2ErrorRdPerc = mean(lbRdPercentile < 0 & ubRdPercentile > 0))
+# Random hazard multiplier:
 # # A tibble: 5 × 6
 # timePoint type2ErrorHr type2ErrorRr type2ErrorRd type2ErrorRrPerc type2ErrorRdPerc
 # <dbl>        <dbl>        <dbl>        <dbl>            <dbl>            <dbl>
-#   1       180        0.024        0.542        0.537            0.526            0.526
+# 1       180        0.001        0.162        0.163            0.161            0.161
+# 2       365        0.001        0.265        0.255            0.24             0.24 
+# 3       730        0.001        0.265        0.255            0.24             0.24 
+# 4      1095        0.001        0.265        0.255            0.24             0.24 
+# 5      1460        0.001        0.265        0.255            0.24             0.24 
+
+# Fixed hazard multiplier:
+# # A tibble: 5 × 6
+# timePoint type2ErrorHr type2ErrorRr type2ErrorRd type2ErrorRrPerc type2ErrorRdPerc
+# <dbl>        <dbl>        <dbl>        <dbl>            <dbl>            <dbl>
+# 1       180        0.024        0.542        0.537            0.526            0.526
 # 2       365        0.024        0.612        0.609            0.582            0.582
 # 3       730        0.024        0.618        0.616            0.585            0.585
 # 4      1095        0.024        0.618        0.616            0.585            0.585
 # 5      1460        0.024        0.618        0.616            0.585            0.585
 
 ParallelLogger::stopCluster(cluster)
-
-
-
-# population <- simulatePopulation(settings, seed)
