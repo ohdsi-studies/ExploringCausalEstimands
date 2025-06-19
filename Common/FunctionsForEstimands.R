@@ -1,0 +1,448 @@
+library(CohortMethod)
+library(survival)
+library(dplyr)
+
+computeWeights <- function(data) {
+  weights <- ifelse(data$treatment == 1,
+                    mean(data$treatment == 1),
+                    mean(data$treatment == 0) * data$propensityScore / (1 - data$propensityScore)
+  )
+  return(weights)
+}
+
+.calculateKmEstimands <- function(dummy, data, timePoints, sample = FALSE) {
+  if (sample) {
+    indices <- sample.int(nrow(data), nrow(data), replace = TRUE)
+    sampledData <- data[indices, ]
+  } else {
+    sampledData <- data
+  }
+  if (sum(sampledData$y[sampledData$treatment == 1]) == 0 |
+      sum(sampledData$y[sampledData$treatment == 0]) == 0) {
+    results <- list()
+    for (i in seq_along(timePoints)) {
+      timePoint <- timePoints[i]
+      results[[i]] <- tibble(
+        timePoint = timePoint,
+        rr = 1,
+        rd = 0
+      )
+    }
+    results <- bind_rows(results)
+    return(results)
+  }
+  sampledData$treatment <- as.factor(sampledData$treatment)  
+  if ("weight" %in% colnames(sampledData)) {
+    fit <- survfit(Surv(survivalTime, y) ~ treatment,
+                   robust = FALSE,
+                   data = sampledData,
+                   weights = sampledData$weight)
+  } else {
+    fit <- survfit(Surv(survivalTime, y) ~ treatment,
+                   robust = FALSE,
+                   data = sampledData)
+    
+  }
+  
+  results <- list()
+  for (i in seq_along(timePoints)) {
+    timePoint <- timePoints[i]
+    riskControl <- 1 - summary(fit,times = timePoint, extend=TRUE)$surv[1]
+    riskTreated <- 1 - summary(fit,times = timePoint, extend=TRUE)$surv[2]
+    results[[i]] <- tibble(
+      timePoint = timePoint,
+      rr = riskTreated / riskControl,
+      rd = riskTreated - riskControl
+    )
+  }
+  results <- bind_rows(results)
+  return(results)
+}
+
+.truncateData <- function(data, timePoint) {
+  data <- data |>
+    mutate(y = if_else(survivalTime > timePoint, 0, y),
+           survivalTime = if_else(survivalTime > timePoint, timePoint, survivalTime))
+  return(data)
+}
+
+.calculateAcceleratedFailureTime <- function(data) {
+  if ("weight" %in% colnames(data)) {
+    fit <- survreg(Surv(survivalTime, y) ~ treatment,
+                   data = data,
+                   dist = "weibull",
+                   weights = data$weight)
+  } else {
+    fit <- survreg(Surv(survivalTime, y) ~ treatment,
+                   data = data,
+                   dist = "weibull")
+  }
+  logAf <- coef(fit)["treatment1"]
+  af <- exp(logAf)
+  logCi <- confint(fit, parm = "treatment1")
+  ci <- exp(logCi)
+  se <- (logCi[2] - logCi[1]) / (2 * qnorm(0.975))
+  estimate <- tibble(
+    estimate = af,
+    lb = ci[1],
+    ub = ci[2],
+    se = se
+  )
+  return(estimate)
+}
+
+.calculateCoxEstimate <- function(dummy, data, sample = FALSE) {
+  if (sample) {
+    indices <- sample.int(nrow(data), nrow(data), replace = TRUE)
+    sampledData <- data[indices, ]
+  } else {
+    sampledData <- data
+  }
+  if (sum(sampledData$y[sampledData$treatment == 1]) == 0 |
+      sum(sampledData$y[sampledData$treatment == 0]) == 0) {
+    if (sample) {
+      estimate <- tibble(
+        logHr = NA
+      )
+    } else {
+      estimate <- tibble(
+        hr = NA,
+        lbHr = NA,
+        ubHr = NA,
+        seLogHr = NA
+      )
+    }
+  } else {
+    cyclopsData <- Cyclops::createCyclopsData(Surv(survivalTime, y) ~ treatment, modelType = "cox", data = sampledData)
+    fit <- Cyclops::fitCyclopsModel(cyclopsData)
+    logHr <- coef(fit)
+    if (sample) {
+      estimate <- tibble(
+        logHr = logHr
+      )
+    } else {
+      hr <- exp(logHr)
+      ci <- exp(confint(fit, parm = "treatment1")[c(2, 3)])
+      se <- (log(ci[2]) - log(ci[1])) / (qnorm(0.975) - qnorm(0.025))
+      estimate <- tibble(
+        estimate = hr,
+        lb = ci[1],
+        ub = ci[2],
+        se = se
+      )
+    }
+  }
+  return(estimate)
+}
+
+.calculateRmst <- function(dummy, data, timePoints, sample = FALSE) {
+  if (sample) {
+    indices <- sample.int(nrow(data), nrow(data), replace = TRUE)
+    sampledData <- data[indices, ]
+  } else {
+    sampledData <- data
+  }
+  if (sum(sampledData$y[sampledData$treatment == 1]) == 0 |
+      sum(sampledData$y[sampledData$treatment == 0]) == 0) {
+    results <- list()
+    for (i in seq_along(timePoints)) {
+      timePoint <- timePoints[i]
+      results[[i]] <- tibble(
+        timePoint = timePoint,
+        rmst = NA
+      )
+    }
+    results <- bind_rows(results)
+    return(results)
+  }
+  lastDay <- sampledData |>
+    group_by(treatment) |>
+    summarise(time = max(survivalTime)) |>
+    summarise(min(time)) |>
+    pull()
+  timePointTruncation <- tibble(timePoint = timePoints) |>
+    mutate(truncatedTimePoint = pmin(timePoint, lastDay))
+  
+  if ("weight" %in% colnames(sampledData)) {
+    survObject <- adjustedCurves::adjustedsurv(
+      data = sampledData,
+      variable = "treatment",
+      ev_time = "survivalTime",
+      event = "y",
+      method = "iptw_km",
+      treatment_model = sampledData$weight
+    )
+    rmst <- adjustedCurves::adjusted_rmst(
+      adjsurv = survObject,
+      to = tau,
+      contrast = "diff"
+    )
+  } else {
+    survObject <- adjustedCurves::adjustedsurv(
+      data = sampledData,
+      variable = "treatment",
+      ev_time = "survivalTime",
+      event = "y",
+      method = "km"
+    )
+    rmstDiff <- adjustedCurves::adjusted_rmst(
+      adjsurv = survObject,
+      to = unique(timePointTruncation$truncatedTimePoint),
+      contrast = "diff"
+    )
+    rmstRatio <- adjustedCurves::adjusted_rmst(
+      adjsurv = survObject,
+      to = unique(timePointTruncation$truncatedTimePoint),
+      contrast = "ratio"
+    )
+  }
+  results <- timePointTruncation |>
+    inner_join(rmstDiff |>
+                  rename(truncatedTimePoint = "to",
+                         rmstDiff = "diff"),
+                by = join_by(truncatedTimePoint)
+    ) |>
+    inner_join(rmstRatio |>
+                 rename(truncatedTimePoint = "to",
+                        rmstRatio = "ratio"),
+               by = join_by(truncatedTimePoint)
+    ) |>
+    select(-truncatedTimePoint)
+  return(results)
+}
+
+computeEstimands <- function(population, 
+                             timePoints = c(180, 365, 730, 1095, 1460),
+                             bootstrapSize = 1000, 
+                             cluster = NULL) {
+  if (is.null(cluster)) {
+    cluster <- ParallelLogger::makeCluster(1)
+    on.exit(ParallelLogger::stopCluster(cluster))
+  }
+  ParallelLogger::clusterRequire(cluster, "survival")
+  ParallelLogger::clusterRequire(cluster, "dplyr")
+  if ("a" %in% colnames(population)) {
+    population <- population |>
+      rename(treatment = a)
+  }
+  population$treatment <- as.factor(population$treatment)  
+  
+  # Kaplan-Meier-based estimates:
+  mainKmEstimates <- .calculateKmEstimands(NA, population, timePoints)
+  kmBootStrap <- ParallelLogger::clusterApply(cluster, 
+                                              seq_len(bootstrapSize), 
+                                              .calculateKmEstimands, 
+                                              data = population, 
+                                              timePoints = timePoints,
+                                              sample = TRUE)
+  kmBootStrap <- bind_rows(kmBootStrap) 
+  kmRrAsymptotic <- kmBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      se = sqrt(var(log(rr), na.rm = TRUE))
+    ) |>
+    inner_join(mainKmEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rr,
+      lb = exp(log(rr) + qnorm(0.025) * se),
+      ub = exp(log(rr) + qnorm(0.975) * se),
+      se = se
+    ) |>
+    mutate(estimand = "Risk Ratio", 
+           model = "Kaplan Meier",
+           contrast = "ratio",
+           ciMethod = "asymptotic")
+  kmRdAsymptotic <- kmBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      se = sqrt(var(rd, na.rm = TRUE))
+    ) |>
+    inner_join(mainKmEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rd,
+      lb = rd + qnorm(0.025) * se,
+      ub = rd + qnorm(0.975) * se,
+      se = se
+    ) |>
+    mutate(estimand = "Risk Difference", 
+           model = "Kaplan Meier",
+           contrast = "difference",
+           ciMethod = "asymptotic")
+  kmRrPercentile <- kmBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      lb = quantile(rr, 0.025, na.rm = TRUE),
+      ub = quantile(rr, 0.975, na.rm = TRUE),
+    ) |>
+    inner_join(mainKmEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rr,
+      lb = lb,
+      ub = ub,
+      se = (log(ub) - log(lb)) / (2 * qnorm(0.975)),
+    ) |>
+    mutate(estimand = "Risk Ratio", 
+           model = "Kaplan Meier",
+           contrast = "ratio",
+           ciMethod = "percentile")
+  kmRdPercentile <- kmBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      lb = quantile(rd, 0.025, na.rm = TRUE),
+      ub = quantile(rd, 0.975, na.rm = TRUE),
+    ) |>
+    inner_join(mainKmEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rd,
+      lb = lb,
+      ub = ub,
+      se = (ub - lb) / (2 * qnorm(0.975)),
+    ) |>
+    mutate(estimand = "Risk Difference", 
+           model = "Kaplan Meier",
+           contrast = "difference",
+           ciMethod = "percentile")
+  kmEstimates <- bind_rows(
+    kmRrAsymptotic,
+    kmRrPercentile,
+    kmRdAsymptotic,
+    kmRdPercentile
+  )
+  
+  # Cox and accelerated failure time estimates:
+  afHrEstimates <- list()
+  for (i in seq_along(timePoints)) {
+    timePoint <- timePoints[i]
+    truncatedData <- .truncateData(population, timePoint)
+    afEstimate <- .calculateAcceleratedFailureTime(truncatedData) |>
+      mutate(estimand = "Acceleration Coefficient", 
+             model = "AFT",
+             contrast = "ratio",
+             ciMethod = "asymptotic")
+    if ("weight" %in% colnames(truncatedData)) {
+      hrMainEstimate <- .calculateCoxEstimate(NA, truncatedData)
+      hrBootStrap <- ParallelLogger::clusterApply(cluster, 
+                                                  seq_len(bootstrapSize), 
+                                                  .calculateCoxEstimate, 
+                                                  data = population, 
+                                                  sample = TRUE)
+      hrBootStrap <- bind_rows(hrBootStrap) 
+      seLogHr <- sqrt(var(hrBootStrap$logHr))
+      ci <- exp(log(hrMainEstimate$hr) + qnorm(c(0.025, 0.975)) * seLogHr)
+      hrEstimate <- tibble(
+        estimate = hrMainEstimate$hr,
+        lb = ci[1],
+        ub = ci[2],
+        se = seLogHr
+      )
+    } else {
+      hrEstimate <- .calculateCoxEstimate(NA, truncatedData) |>
+        mutate(estimand = "Hazard Ratio", 
+               model = "Cox",
+               contrast = "ratio",
+               ciMethod = "asymptotic")
+    }
+    afHrEstimates[[i]] <- bind_rows(
+      afEstimate,
+      hrEstimate
+    ) |>
+      mutate(timePoint = timePoint)
+  }
+  afHrEstimates <- bind_rows(afHrEstimates)
+  
+  # RMST
+  mainMrstEstimates <- .calculateRmst(NA, population, timePoints)
+  mrstBootStrap <- ParallelLogger::clusterApply(cluster, 
+                                              seq_len(bootstrapSize), 
+                                              .calculateRmst, 
+                                              data = population, 
+                                              timePoints = timePoints,
+                                              sample = TRUE)
+  mrstBootStrap <- bind_rows(mrstBootStrap) 
+  mrstDiffAsymptotic <- mrstBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      se = sqrt(var(rmstDiff, na.rm = TRUE))
+    ) |>
+    inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rmstDiff,
+      lb = rmstDiff + qnorm(0.025) * se,
+      ub = rmstDiff + qnorm(0.975) * se,
+      se = se
+    ) |>
+    mutate(estimand = "RMST Difference", 
+           model = "RMST",
+           contrast = "difference",
+           ciMethod = "asymptotic")
+  mrstRatioAsymptotic <- mrstBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      se = sqrt(var(log(rmstRatio), na.rm = TRUE))
+    ) |>
+    inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rmstRatio,
+      lb = exp(log(rmstRatio) + qnorm(0.025) * se),
+      ub = exp(log(rmstRatio) + qnorm(0.975) * se),
+      se = se
+    ) |>
+    mutate(estimand = "RMST Ratio", 
+           model = "RMST",
+           contrast = "ratio",
+           ciMethod = "asymptotic")
+  mrstDiffPercentile <- mrstBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      lb = quantile(rmstDiff, 0.025, na.rm = TRUE),
+      ub = quantile(rmstDiff, 0.975, na.rm = TRUE)
+    ) |>
+    inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rmstDiff,
+      lb = lb,
+      ub = ub,
+      se = (ub - lb) / (2 * qnorm(0.975))
+    ) |>
+    mutate(estimand = "RMST Difference", 
+           model = "RMST",
+           contrast = "difference",
+           ciMethod = "percentile")
+  mrstRatioPercentile <- mrstBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      lb = quantile(rmstRatio, 0.025, na.rm = TRUE),
+      ub = quantile(rmstRatio, 0.975, na.rm = TRUE)
+    ) |>
+    inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = rmstRatio,
+      lb = lb,
+      ub = ub,
+      se = (log(ub) - log(lb)) / (2 * qnorm(0.975))
+    ) |>
+    mutate(estimand = "RMST Ratio", 
+           model = "RMST",
+           contrast = "ratio",
+           ciMethod = "percentile")
+  mrstEstimates <- bind_rows(
+    mrstDiffAsymptotic,
+    mrstDiffPercentile,
+    mrstRatioAsymptotic,
+    mrstRatioPercentile
+  )
+  estimates <- bind_rows(
+    kmEstimates,
+    afHrEstimates,
+    mrstEstimates
+  )
+  return(estimates)
+}
