@@ -4,22 +4,22 @@ library(survival)
 
 # specify analyses -------------------------------------------------------------
 
-tcs <- readr::read_csv("RealWorldExample/TCs.csv", show_col_types = FALSE)
+tcos <- readr::read_csv("RealWorldExample/TCOs.csv", show_col_types = FALSE)
 negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
 
 targetComparatorOutcomesList <- list()
-for (i in seq_len(nrow(tcs))) {
+for (i in seq_len(nrow(tcos))) {
   negativeControlConceptIds <- negativeControls |>
-    filter(indicationId == tcs$indicationId[i]) |>
+    filter(indicationId == tcos$indicationId[i]) |>
     pull(conceptId)
-  negativeControlOutcomes <- lapply(negativeControlConceptIds,
-                                    function(outcomeId) createOutcome(outcomeId = outcomeId,
-                                                                      outcomeOfInterest = TRUE))
+  outcomes <- lapply(c(negativeControlConceptIds, tcos$outcomeId[i]),
+                     function(outcomeId) createOutcome(outcomeId = outcomeId,
+                                                       outcomeOfInterest = TRUE))
   targetComparatorOutcomesList[[i]] <- createTargetComparatorOutcomes(
-    targetId = tcs$targetId[i],
-    comparatorId = tcs$comparatorId[i],
-    outcomes = negativeControlOutcomes,
-    excludedCovariateConceptIds = c(tcs$targetId[i], tcs$comparatorId[i])
+    targetId = tcos$targetId[i],
+    comparatorId = tcos$comparatorId[i],
+    outcomes = outcomes,
+    excludedCovariateConceptIds = c(tcos$targetId[i], tcos$comparatorId[i])
   )
 }
 
@@ -64,7 +64,6 @@ cmAnalysis <- createCmAnalysis(analysisId = 1,
                                computeCovariateBalanceArgs = computeCovBalArgs,
                                fitOutcomeModelArgs = fitOutcomeModelArgs)
 
-
 cmAnalysisList <- list(cmAnalysis)
 
 
@@ -85,14 +84,3 @@ result <- runCmAnalyses(
   multiThreadingSettings = multiThreadingSettings
 )
 
-# Save estimates ---------------------------------------------------------------
-hrEstimates <- getResultsSummary(outputFolder) |>
-  select(targetId, comparatorId, outcomeId, logRr, seLogRr, ci95Lb, ci95Ub, p, mdrr)
-saveRDS(hrEstimates, "RealWorldExample/hrEstimates.rds")
-
-# Compute follup-time ----------------------------------------------------------
-ref <- getFileReference(outputFolder)
-studyPop <- readRDS(file.path(outputFolder, ref$strataFile[1]))
-quantile(studyPop$timeAtRisk, c(0.25, 0.5, 0.75, 0.9, 0.95, 1))
-# 25%  50%  75% 100% 
-#   52  132  386 6622 

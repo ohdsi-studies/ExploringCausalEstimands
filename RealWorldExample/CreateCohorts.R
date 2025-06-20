@@ -3,11 +3,12 @@ library(Capr)
 library(dplyr)
 library(CirceR)
 
-tcs <- readr::read_csv("RealWorldExample/TCs.csv", show_col_types = FALSE)
+tcos <- readr::read_csv("RealWorldExample/TCOs.csv", show_col_types = FALSE)
 negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
 
 connection <- connect(connectionDetails)
 
+# Exposure cohorts -------------------------------------------------------------
 indicationConceptSets <- list()
 mdd <- cs(
   descendants(4191716, 4212469, 4175329, 440383, 40546087), 
@@ -24,18 +25,10 @@ hypertensiveDisorder <- cs(
 hypertensiveDisorder <- getConceptSetDetails(hypertensiveDisorder, connection, cdmDatabaseSchema)
 indicationConceptSets[["Hypertension"]] <- hypertensiveDisorder
 
-t2dm <- cs(
-  descendants(443238, 201820, 442793), 
-  descendants(exclude(195771, 201254, 435216, 761051, 4058243, 40484648)),
-  name = "Type 2 diabetes mellitus (diabetes mellitus excluding T1DM and secondary)"
-)
-t2dm <- getConceptSetDetails(t2dm, connection, cdmDatabaseSchema)
-indicationConceptSets[["T2DM"]] <- t2dm
-
 exposures <- bind_rows(
-  tcs |>
+  tcos |>
     select(conceptId = targetId, name = targetName, indicationId),
-  tcs |>
+  tcos |>
     select(conceptId = comparatorId, name = comparatorName, indicationId)
 )
 
@@ -70,6 +63,49 @@ for (i in seq_len(nrow(exposures))) {
   )
 }
 cohortDefinitionSet <- bind_rows(cohortDefinitionSet)
+
+# Outcome cohorts --------------------------------------------------------------
+suicideAndCSuicidalIdeation <- cs(descendants(435446,439235,440925,444362,4009713,4021339,4092411,4181216,4216115,4219484,4273391,4303690),
+                                  name = "Suicide and suicidal ideation")
+suicideAndCSuicidalIdeation <- getConceptSetDetails(suicideAndCSuicidalIdeation, connection, cdmDatabaseSchema)
+suicideAndCSuicidalIdeationCohort <- cohort(
+  entry = entry(
+    conditionOccurrence(suicideAndCSuicidalIdeation),
+    observation(suicideAndCSuicidalIdeation),
+    primaryCriteriaLimit = "First"
+  )
+)
+
+angioedema <- cs(descendants(432791,4296370),
+                 name = "Angioedema")
+angioedema <- getConceptSetDetails(angioedema, connection, cdmDatabaseSchema)
+angioedemaOrUrticaria <- cs(descendants(432791,4270861,4296370,4297361),
+                           name = "Angioedema or urticaria") 
+angioedemaOrUrticaria <- getConceptSetDetails(angioedemaOrUrticaria, connection, cdmDatabaseSchema)
+angioedemaCohort <- cohort(
+  entry = entry(
+    conditionOccurrence(angioedemaOrUrticaria),
+    primaryCriteriaLimit = "All",
+    qualifiedLimit = "First"
+  ),
+  attrition = attrition(
+    "Angioedema within 3 days" = withAll(
+      atLeast(1, conditionOccurrence(angioedema), duringInterval(eventStarts(0,3)))
+    )
+  )
+)
+json <- c(as.json(angioedemaCohort), as.json(suicideAndCSuicidalIdeationCohort))
+outcomeCohortDefinitionsSet <- tibble(
+  cohortId = c(1, 2),
+  cohortName = c("Suicide and suicidal ideation", "Angioedema"),
+  json = json,
+  sql = c(buildCohortQuery(json[1], createGenerateOptions(generateStats = FALSE)),
+          buildCohortQuery(json[2], createGenerateOptions(generateStats = FALSE)))
+)
+cohortDefinitionSet <- bind_rows(cohortDefinitionSet, outcomeCohortDefinitionsSet)
+# json <- as.json(angioedemaCohort)
+# writeLines(CirceR::cohortPrintFriendly(json))
+
 
 # Generate cohorts -------------------------------------------------------------
 cohortTableNames <- CohortGenerator::getCohortTableNames(cohortTable)
@@ -113,9 +149,12 @@ cohortCounts <- cohortCounts |>
       exposures |>
         select(cohortId = "conceptId", cohortName = "name") |>
         mutate(type = "exposure"),
+      tcos |>
+        select(cohortId = "outcomeId", cohortName = "outcomeName") |>
+        mutate(type = "positive control outcome"),
       negativeControlOutcomeCohortSet |>
         select("cohortId", "cohortName") |>
-        mutate(type = "outcome")
+        mutate(type = "negative control outcome")
     ),
     by = join_by("cohortId")
   )

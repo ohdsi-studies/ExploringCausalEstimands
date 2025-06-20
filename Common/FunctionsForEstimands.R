@@ -1,6 +1,7 @@
 library(CohortMethod)
 library(survival)
 library(dplyr)
+library(adjustedCurves)
 
 computeWeights <- function(data) {
   weights <- ifelse(data$treatment == 1,
@@ -68,14 +69,24 @@ computeWeights <- function(data) {
 
 .calculateAcceleratedFailureTime <- function(data) {
   if ("weight" %in% colnames(data)) {
-    fit <- survreg(Surv(survivalTime, y) ~ treatment,
-                   data = data,
-                   dist = "weibull",
-                   weights = data$weight)
+    weights <- data$weight
   } else {
+    weights <- NULL
+  }
+  fit <- tryCatch(survreg(Surv(survivalTime, y) ~ treatment,
+                          data = data,
+                          control = survreg.control(maxiter = 300),
+                          dist = "weibull",
+                          weights = weights),
+                  error = function(e) {NA}
+  )
+  if (isTRUE(is.na(fit))) {
     fit <- survreg(Surv(survivalTime, y) ~ treatment,
                    data = data,
-                   dist = "weibull")
+                   control = survreg.control(maxiter = 300),
+                   dist = "weibull",
+                   scale = 1,
+                   weights = weights)
   }
   logAf <- coef(fit)["treatment1"]
   af <- exp(logAf)
@@ -106,10 +117,10 @@ computeWeights <- function(data) {
       )
     } else {
       estimate <- tibble(
-        hr = NA,
-        lbHr = NA,
-        ubHr = NA,
-        seLogHr = NA
+        estimate = NA,
+        lb = NA,
+        ub = NA,
+        seLog = NA
       )
     }
   } else {
@@ -149,13 +160,15 @@ computeWeights <- function(data) {
       timePoint <- timePoints[i]
       results[[i]] <- tibble(
         timePoint = timePoint,
-        rmst = NA
+        rmstDiff = NA,
+        rmstRatio = NA
       )
     }
     results <- bind_rows(results)
     return(results)
   }
   lastDay <- sampledData |>
+    filter(y == 1) |>
     group_by(treatment) |>
     summarise(time = max(survivalTime)) |>
     summarise(min(time)) |>
@@ -172,11 +185,6 @@ computeWeights <- function(data) {
       method = "iptw_km",
       treatment_model = sampledData$weight
     )
-    rmst <- adjustedCurves::adjusted_rmst(
-      adjsurv = survObject,
-      to = tau,
-      contrast = "diff"
-    )
   } else {
     survObject <- adjustedCurves::adjustedsurv(
       data = sampledData,
@@ -185,22 +193,22 @@ computeWeights <- function(data) {
       event = "y",
       method = "km"
     )
-    rmstDiff <- adjustedCurves::adjusted_rmst(
-      adjsurv = survObject,
-      to = unique(timePointTruncation$truncatedTimePoint),
-      contrast = "diff"
-    )
-    rmstRatio <- adjustedCurves::adjusted_rmst(
-      adjsurv = survObject,
-      to = unique(timePointTruncation$truncatedTimePoint),
-      contrast = "ratio"
-    )
   }
+  rmstDiff <- adjustedCurves::adjusted_rmst(
+    adjsurv = survObject,
+    to = unique(timePointTruncation$truncatedTimePoint),
+    contrast = "diff"
+  )
+  rmstRatio <- adjustedCurves::adjusted_rmst(
+    adjsurv = survObject,
+    to = unique(timePointTruncation$truncatedTimePoint),
+    contrast = "ratio"
+  )
   results <- timePointTruncation |>
     inner_join(rmstDiff |>
-                  rename(truncatedTimePoint = "to",
-                         rmstDiff = "diff"),
-                by = join_by(truncatedTimePoint)
+                 rename(truncatedTimePoint = "to",
+                        rmstDiff = "diff"),
+               by = join_by(truncatedTimePoint)
     ) |>
     inner_join(rmstRatio |>
                  rename(truncatedTimePoint = "to",
@@ -332,12 +340,16 @@ computeEstimands <- function(population,
                                                   sample = TRUE)
       hrBootStrap <- bind_rows(hrBootStrap) 
       seLogHr <- sqrt(var(hrBootStrap$logHr))
-      ci <- exp(log(hrMainEstimate$hr) + qnorm(c(0.025, 0.975)) * seLogHr)
+      ci <- exp(log(hrMainEstimate$estimate) + qnorm(c(0.025, 0.975)) * seLogHr)
       hrEstimate <- tibble(
-        estimate = hrMainEstimate$hr,
+        estimate = hrMainEstimate$estimate,
         lb = ci[1],
         ub = ci[2],
-        se = seLogHr
+        se = seLogHr,
+        estimand = "Hazard Ratio", 
+        model = "Cox",
+        contrast = "ratio",
+        ciMethod = "asymptotic"
       )
     } else {
       hrEstimate <- .calculateCoxEstimate(NA, truncatedData) |>
@@ -357,11 +369,11 @@ computeEstimands <- function(population,
   # RMST
   mainMrstEstimates <- .calculateRmst(NA, population, timePoints)
   mrstBootStrap <- ParallelLogger::clusterApply(cluster, 
-                                              seq_len(bootstrapSize), 
-                                              .calculateRmst, 
-                                              data = population, 
-                                              timePoints = timePoints,
-                                              sample = TRUE)
+                                                seq_len(bootstrapSize), 
+                                                .calculateRmst, 
+                                                data = population, 
+                                                timePoints = timePoints,
+                                                sample = TRUE)
   mrstBootStrap <- bind_rows(mrstBootStrap) 
   mrstDiffAsymptotic <- mrstBootStrap |>
     group_by(timePoint) |>
