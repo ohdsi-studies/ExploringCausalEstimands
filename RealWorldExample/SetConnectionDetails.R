@@ -7,7 +7,7 @@ connectionDetails <- createConnectionDetails(
   user = "token",
   password = keyring::key_get("databricksToken")
 )
-cdmDatabaseSchema <- "merative_mdcr.cdm_merative_mdcr_v3466"
+cdmDatabaseSchema <- "optum_extended_dod.cdm_optum_extended_dod_v3492"
 cohortDatabaseSchema <- "scratch.scratch_mschuemi"
 cohortTable  <- "hrs_and_causality"
 options(sqlRenderTempEmulationSchema = "scratch.scratch_mschuemi")

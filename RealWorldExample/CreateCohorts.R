@@ -27,9 +27,9 @@ indicationConceptSets[["Hypertension"]] <- hypertensiveDisorder
 
 exposures <- bind_rows(
   tcos |>
-    select(conceptId = targetId, name = targetName, indicationId),
+    distinct(conceptId = targetId, name = targetName, indicationId),
   tcos |>
-    select(conceptId = comparatorId, name = comparatorName, indicationId)
+    distinct(conceptId = comparatorId, name = comparatorName, indicationId)
 )
 
 cohortDefinitionSet  <- list()
@@ -76,6 +76,39 @@ suicideAndCSuicidalIdeationCohort <- cohort(
   )
 )
 
+hyponatremia <- cs(descendants(435515,4232311),
+                   name = "Hyponatremia")
+hyponatremia <- getConceptSetDetails(hyponatremia, connection, cdmDatabaseSchema)
+hyponatremiaCohort <- cohort(
+  entry = entry(
+    conditionOccurrence(hyponatremia),
+    primaryCriteriaLimit = "First"
+  )
+)
+
+vomitingOrNaussea <- cs(descendants(4012500, 31967, 4101344, 201218),
+                        exclude(descendants(26727, 30284, 436166, 440785, 4153517, 4156946, 4274029, 4323686, 40480291, 45757414)),
+                                  name = "Vomiting or naussea")
+vomitingOrNaussea <- getConceptSetDetails(vomitingOrNaussea, connection, cdmDatabaseSchema)
+vomitingOrNausseaCohort <- cohort(
+  entry = entry(
+    conditionOccurrence(vomitingOrNaussea),
+    observation(vomitingOrNaussea),
+    primaryCriteriaLimit = "First"
+  )
+)
+
+orgasmDisorder <- cs(descendants(4221288),
+                   name = "Orgasm disorder")
+orgasmDisorder <- getConceptSetDetails(orgasmDisorder, connection, cdmDatabaseSchema)
+orgasmDisorderCohort <- cohort(
+  entry = entry(
+    conditionOccurrence(orgasmDisorder),
+    primaryCriteriaLimit = "First"
+  )
+)
+
+
 angioedema <- cs(descendants(432791,4296370),
                  name = "Angioedema")
 angioedema <- getConceptSetDetails(angioedema, connection, cdmDatabaseSchema)
@@ -94,13 +127,24 @@ angioedemaCohort <- cohort(
     )
   )
 )
-json <- c(as.json(angioedemaCohort), as.json(suicideAndCSuicidalIdeationCohort))
+json <- c(as.json(angioedemaCohort), 
+          as.json(suicideAndCSuicidalIdeationCohort), 
+          as.json(hyponatremiaCohort), 
+          as.json(vomitingOrNausseaCohort), 
+          as.json(orgasmDisorderCohort))
 outcomeCohortDefinitionsSet <- tibble(
-  cohortId = c(1, 2),
-  cohortName = c("Suicide and suicidal ideation", "Angioedema"),
+  cohortId = c(1, 2, 3, 4, 5),
+  cohortName = c("Suicide and suicidal ideation", 
+                 "Angioedema",
+                 "Hyponatremia",
+                 "Vomiting or naussea",
+                 "Orgams disorder"),
   json = json,
   sql = c(buildCohortQuery(json[1], createGenerateOptions(generateStats = FALSE)),
-          buildCohortQuery(json[2], createGenerateOptions(generateStats = FALSE)))
+          buildCohortQuery(json[2], createGenerateOptions(generateStats = FALSE)),
+          buildCohortQuery(json[3], createGenerateOptions(generateStats = FALSE)),
+          buildCohortQuery(json[4], createGenerateOptions(generateStats = FALSE)),
+          buildCohortQuery(json[5], createGenerateOptions(generateStats = FALSE)))
 )
 cohortDefinitionSet <- bind_rows(cohortDefinitionSet, outcomeCohortDefinitionsSet)
 # json <- as.json(angioedemaCohort)

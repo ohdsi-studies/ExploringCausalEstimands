@@ -1,3 +1,6 @@
 ﻿targetId,targetName,comparatorId,comparatorName,outcomeId,outcomeName,indicationId
 739138,Sertraline,750982,Bupropion,1,Suicide attempt or ideation,Depression
+739138,Sertraline,750982,Bupropion,3,Hyponatremia,Depression
+739138,Sertraline,750982,Bupropion,4,Vomiting or naussea,Depression
+739138,Sertraline,750982,Bupropion,5,Orgams disorder,Depression
 1308216,Lisinopril,974166,Hydrochlorothiazide,2,Angioedema,Hypertension

@@ -4,7 +4,7 @@ library(CohortMethod)
 library(survival)
 library(dplyr)
 
-timePoints <- c(180, 365, 730, 1095, 1460)
+timePoints <- c(180, 365, 730)
 bootstrapSize <- 200
 
 cluster <- ParallelLogger::makeCluster(maxCores)

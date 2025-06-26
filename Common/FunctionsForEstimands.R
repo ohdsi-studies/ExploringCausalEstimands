@@ -120,7 +120,7 @@ computeWeights <- function(data) {
         estimate = NA,
         lb = NA,
         ub = NA,
-        seLog = NA
+        se = NA
       )
     }
   } else {

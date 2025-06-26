@@ -2,50 +2,30 @@ library(dplyr)
 
 mdrrTheshold <- 2
 
-hrEstimates <- readRDS("RealWorldExample/hrEstimates.rds")
-nonHrEstimates <- readRDS("RealWorldExample/nonHrEstimatesMatching.rds")
-nonHrEstimatesWeighted <- readRDS("RealWorldExample/rrEstimatesWeighted.rds")
+mdrr <- readRDS("RealWorldExample/mdrr.rds")
+estimatesMatched <- readRDS("RealWorldExample/estimatesMatched.rds")
+negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
+
 
 # Restrict to TCOs having sufficient power -------------------------------------
-valid <- hrEstimates |>
+valid <- mdrr |>
   filter(mdrr < mdrrTheshold) |>
   select("targetId", "comparatorId", "outcomeId")
 
-hrEstimates <- hrEstimates |>
-  inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId"))
-nonHrEstimates <- nonHrEstimates |>
-  inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId"))
-nonHrEstimatesWeighted <- nonHrEstimatesWeighted |>
-  inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId"))
+estimates <- estimatesMatched |>
+  inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId")) |>
+  mutate(adjustment = "PS matching")
 
 # Compute metrics --------------------------------------------------------------
-
-pivotNonHr <- function(nonHrEstimates) {
-  nonHrEstimates <- bind_rows(
-    nonHrEstimates |>
-      select(targetId, comparatorId, outcomeId, timePoint, estimate = rr, lb = lbRrPercentile, ub = ubRrPercentile, se = seLogRrPercentile) |>
-      mutate(estimand = "rr", method = "percentile"),
-    nonHrEstimates |>
-      select(targetId, comparatorId, outcomeId, timePoint, estimate = rd, lb = lbRdPercentile, ub = ubRdPercentile, se = seRdPercentile) |>
-      mutate(estimand = "rd", method = "percentile"),
-    nonHrEstimates |>
-      select(targetId, comparatorId, outcomeId, timePoint, estimate = rr, lb = lbRrAsymptotics, ub = ubRrAsymptotics, se = seLogRrAsymptotics) |>
-      mutate(estimand = "rr", method = "asymptotics"),
-    nonHrEstimates |>
-      select(targetId, comparatorId, outcomeId, timePoint, estimate = rd, lb = lbRdAsymptotics, ub = ubRdAsymptotics, se = seRdAsymptotics) |>
-      mutate(estimand = "rd", method = "asymptotics")
-  )
-  return(nonHrEstimates)
-}
 
 computeType1Error <- function(lb, ub, h0 = 1) {
   rejectNull <- (!is.na(lb) & h0 < lb) | (!is.na(ub) & h0 > ub)
   return(mean(rejectNull))
 }
 
-computeMeanPrecision <- function(seLogRr) {
-  seLogRr[is.na(seLogRr)] <- 999
-  precision <- 1 / seLogRr^2
+computeMeanPrecision <- function(se) {
+  se[is.na(se)] <- 999
+  precision <- 1 / se^2
   return(exp(mean(log(precision))))
 }
 
@@ -55,14 +35,121 @@ computeEase <- function(logRr, seLogRr) {
   return(ease$ease)
 }
 
-hrEstimates |>
-  group_by(targetId, comparatorId) |>
+type1Error <- estimates |>
+  mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
+  filter(outcomeId %in% negativeControls$conceptId) |>
+  group_by(targetId, comparatorId, timePoint, estimand, ciMethod, adjustment) |>
   summarise(
     count = n(),
-    type1Error = computeType1Error(ci95Lb, ci95Ub, h0 = 1),
-    meanPrecision = computeMeanPrecision(seLogRr),
-    ease = computeEase(logRr, seLogRr)
+    type1Error = computeType1Error(lb, ub, h0),
+    meanPrecision = computeMeanPrecision(se),
+    ease = computeEase(if_else(contrast == "ratio", log(estimate), estimate), se),
+    .groups = "drop"
   )
+
+type2Error <- estimates |>
+  mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
+  filter(!outcomeId %in% negativeControls$conceptId) |>
+  group_by(targetId, comparatorId, timePoint, estimand, ciMethod, adjustment) |>
+  summarise(
+    count = n(),
+    type2Error = 1 - computeType1Error(lb, ub, h0),
+    meanPrecision = computeMeanPrecision(se),
+    .groups = "drop"
+  )
+
+
+library(ggplot2)
+vizData <- estimates |>
+  filter(ciMethod == "asymptotic", timePoint == 730) |>
+  mutate(h0 = if_else(contrast == "ratio", 1, 0),
+         control = if_else(outcomeId %in% negativeControls$conceptId, "Negative control", "Positive control"),
+         label = if_else(targetId == 739138, "Sertraline vs bupropion\nSuicide attempt or ideation", "Lisinopril vs hydrochlorothiazide\nAngioedema"),
+         estimate = if_else(contrast == "ratio", log(estimate), estimate),
+         estimand = if_else(contrast == "ratio", paste("Log", estimand, sep = "\n"), estimand),)
+seScaleFactors <- vizData |>
+  group_by(label, estimand) |>
+  summarise(meanSe = mean(se, na.rm = TRUE), .groups ="drop") |>
+  mutate(scaleFactor = 1 / meanSe)
+vizData <- vizData |>
+  inner_join(seScaleFactors, by = join_by(estimand, label)) |>
+  mutate(scaledSe = se * scaleFactor) |>
+  arrange(control)
+ggplot(vizData, aes(x = estimate, y = scaledSe, color = control, fill = control, shape = control, size = control, alpha = control)) +
+  geom_hline(yintercept = 0) +
+  geom_abline(aes(intercept = 0, slope = scaleFactor/(qnorm(0.025))), linetype = "dashed", data = seScaleFactors) +
+  geom_abline(aes(intercept = 0, slope = scaleFactor/(qnorm(0.975))), linetype = "dashed", data = seScaleFactors) +
+  geom_vline(xintercept = 0) +
+  geom_point() +
+  scale_x_continuous("Effect Size Estimate") +
+  scale_y_continuous("Standard Error / Mean Standard Error") +
+  scale_shape_manual(values = c(16, 23)) +
+  scale_size_manual(values = c(2, 4)) +
+  scale_color_manual(values = c(rgb(0, 0, 0.8),rgb(0, 0, 0))) +
+  scale_fill_manual(values = c(rgb(0, 0, 0.8), rgb(1, 1, 0))) +
+  scale_alpha_manual(values = c(0.5, 0.8)) +
+  facet_grid(label ~ estimand, scales = "free") +
+  theme(
+    legend.position = "top",
+    legend.title = element_blank()
+  )
+
+
+library(ggplot2)
+vizData <- estimates |>
+  filter(ciMethod == "asymptotic", targetId == 739138, outcomeId > 10 | outcomeId == 3) |>
+  mutate(h0 = if_else(contrast == "ratio", 1, 0),
+         control = if_else(outcomeId %in% negativeControls$conceptId, "Negative control", "Positive control"),
+         label = if_else(targetId == 739138, "Sertraline vs bupropion\nSuicide attempt or ideation", "Lisinopril vs hydrochlorothiazide\nAngioedema"),
+         estimate = if_else(contrast == "ratio", log(estimate), estimate),
+         estimand = if_else(contrast == "ratio", paste("Log", estimand, sep = "\n"), estimand),)
+seScaleFactors <- vizData |>
+  group_by(timePoint, estimand) |>
+  summarise(meanSe = mean(se, na.rm = TRUE), .groups ="drop") |>
+  mutate(scaleFactor = 1 / meanSe)
+vizData <- vizData |>
+  inner_join(seScaleFactors, by = join_by(estimand, timePoint)) |>
+  mutate(scaledSe = se * scaleFactor) |>
+  arrange(control)
+ggplot(vizData, aes(x = estimate, y = scaledSe, color = control, fill = control, shape = control, size = control, alpha = control)) +
+  geom_hline(yintercept = 0) +
+  geom_abline(aes(intercept = 0, slope = scaleFactor/(qnorm(0.025))), linetype = "dashed", data = seScaleFactors) +
+  geom_abline(aes(intercept = 0, slope = scaleFactor/(qnorm(0.975))), linetype = "dashed", data = seScaleFactors) +
+  geom_vline(xintercept = 0) +
+  geom_point() +
+  scale_x_continuous("Effect Size Estimate") +
+  scale_y_continuous("Standard Error / Mean Standard Error") +
+  scale_shape_manual(values = c(16, 23)) +
+  scale_size_manual(values = c(2, 4)) +
+  scale_color_manual(values = c(rgb(0, 0, 0.8),rgb(0, 0, 0))) +
+  scale_fill_manual(values = c(rgb(0, 0, 0.8), rgb(1, 1, 0))) +
+  scale_alpha_manual(values = c(0.5, 0.8)) +
+  facet_grid(timePoint ~ estimand, scales = "free") +
+  theme(
+    legend.position = "top",
+    legend.title = element_blank()
+  )
+
+
+unique(estimates$estimand)
+unique(estimates$timePoint)
+hrs <- estimates |>
+  filter(estimand == "Risk Ratio", ciMethod == "asymptotic", timePoint == 730, targetId != 739138)  |>
+  mutate(logRr = if_else(contrast == "ratio", log(estimate), estimate))
+ncs <- hrs |>
+  filter(outcomeId %in% negativeControls$conceptId)
+pcs <- hrs |>
+  filter(!outcomeId %in% negativeControls$conceptId)
+EmpiricalCalibration::plotCalibrationEffect(ncs$logRr, ncs$se, pcs$logRr, pcs$se)
+
+hrs |> summarise(
+  count = n(),
+  type1Error = computeType1Error(lb, ub, h0),
+  meanPrecision = computeMeanPrecision(se),
+  ease = computeEase(if_else(contrast == "ratio", log(estimate), estimate), se)
+)
+
+
 # # A tibble: 3 × 6
 # # Groups:   targetId [3]
 # targetId comparatorId count type1Error meanPrecision   ease
