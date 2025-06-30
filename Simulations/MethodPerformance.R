@@ -21,7 +21,7 @@ invisible(ParallelLogger::clusterApply(cluster, seq_len(maxCores), sourceFun))
 
 simulateOne <- function(seed, settings) {
   population <- simulatePopulation(settings, seed)
-  timePoints <- c(180, 365, 730, 1095, 1460)
+  timePoints <- c(2, 7, 30, 90, 180, 365)
   estimates <- computeEstimands(population, timePoints = timePoints, bootstrapSize = 200) |>
     mutate(seed = seed)
   return(estimates)
