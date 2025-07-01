@@ -126,21 +126,30 @@ computeWeights <- function(data) {
   } else {
     cyclopsData <- Cyclops::createCyclopsData(Surv(survivalTime, y) ~ treatment, modelType = "cox", data = sampledData)
     fit <- Cyclops::fitCyclopsModel(cyclopsData)
-    logHr <- coef(fit)
-    if (sample) {
+    if (fit$return_flag != "SUCCESS") {
       estimate <- tibble(
-        logHr = logHr
+        estimate = NA,
+        lb = NA,
+        ub = NA,
+        se = NA
       )
     } else {
-      hr <- exp(logHr)
-      ci <- exp(confint(fit, parm = "treatment1")[c(2, 3)])
-      se <- (log(ci[2]) - log(ci[1])) / (qnorm(0.975) - qnorm(0.025))
-      estimate <- tibble(
-        estimate = hr,
-        lb = ci[1],
-        ub = ci[2],
-        se = se
-      )
+      logHr <- coef(fit)
+      if (sample) {
+        estimate <- tibble(
+          logHr = logHr
+        )
+      } else {
+        hr <- exp(logHr)
+        ci <- exp(confint(fit, parm = "treatment1")[c(2, 3)])
+        se <- (log(ci[2]) - log(ci[1])) / (qnorm(0.975) - qnorm(0.025))
+        estimate <- tibble(
+          estimate = hr,
+          lb = ci[1],
+          ub = ci[2],
+          se = se
+        )
+      }
     }
   }
   return(estimate)
