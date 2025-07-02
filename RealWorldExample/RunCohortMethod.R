@@ -93,7 +93,3 @@ library(dplyr)
 mdrr <- getResultsSummary(outputFolder) |>
   select(targetId, comparatorId, outcomeId, mdrr)
 saveRDS(mdrr, "RealWorldExample/mdrr.rds")
-  
-
-getResultsSummary(outputFolder) |>
-  filter(outcomeId < 10)

@@ -127,8 +127,8 @@ angioedemaCohort <- cohort(
     )
   )
 )
-json <- c(as.json(angioedemaCohort), 
-          as.json(suicideAndCSuicidalIdeationCohort), 
+json <- c(as.json(suicideAndCSuicidalIdeationCohort), 
+          as.json(angioedemaCohort), 
           as.json(hyponatremiaCohort), 
           as.json(vomitingOrNausseaCohort), 
           as.json(orgasmDisorderCohort))
