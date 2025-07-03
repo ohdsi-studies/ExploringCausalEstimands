@@ -62,20 +62,28 @@ type2Error <- estimates |>
 library(ggplot2)
 
 plotEstimatesPerTimePoint <- function(estimatesSubset, title, fileName) {
+  timePoints <- estimatesSubset |>
+    pull(timePoint) |>
+    unique() |>
+    sort()
   vizData <- estimatesSubset |>
     filter(se < 10) |>
+    mutate(estimand = gsub("Risk", "KM Risk", estimand)) |>
     mutate(h0 = if_else(contrast == "ratio", 1, 0),
            control = if_else(outcomeId %in% negativeControls$conceptId, "Negative control", "Positive control"),
            logEstimate = if_else(contrast == "ratio", log(estimate), estimate),
            estimand = if_else(contrast == "ratio", paste("Log", estimand, sep = "\n"), estimand),
-           timePoint = factor(paste(timePoint, "days"), levels = paste(timePoints, "days")))
+           timePoint = factor(paste(timePoint, "days"), levels = paste(timePoints, "days"))) |>
+    filter(!is.infinite(logEstimate))
   seScaleFactors <- vizData |>
-    group_by(timePoint, estimand) |>
+    # group_by(timePoint, estimand) |>
     # summarise(meanSe = median(se, na.rm = TRUE), .groups ="drop") |>
+    group_by(estimand) |>
     summarise(meanSe = sd(logEstimate, na.rm = TRUE), .groups ="drop") |>
     mutate(scaleFactor = 1 / meanSe)
   vizData <- vizData |>
-    inner_join(seScaleFactors, by = join_by(estimand, timePoint)) |>
+    # inner_join(seScaleFactors, by = join_by(estimand, timePoint)) |>
+    inner_join(seScaleFactors, by = join_by(estimand)) |>
     mutate(scaledSe = se * scaleFactor,
            scaledEstimate = logEstimate * scaleFactor) |>
     arrange(control)
@@ -102,14 +110,14 @@ plotEstimatesPerTimePoint <- function(estimatesSubset, title, fileName) {
       legend.position = "top",
       legend.title = element_blank(),
     )
-  ggsave(fileName, plot, width = 9, height = 8, dpi = 300)
+  ggsave(fileName, plot, width = 9, height = 7, dpi = 300)
   return(plot)
 }
 
 estimatesSubset <- estimates |>
   filter(ciMethod == "asymptotic", targetId != 739138, outcomeId > 10 | outcomeId == 2)
 plotEstimatesPerTimePoint(estimatesSubset, 
-                          title = "Lisinopril vs hydrochlorothiazide for Angioedema",
+                          title = "Lisinopril vs hydrochlorothiazide for angioedema",
                           fileName = "RealWorldExample/Example1.png")
 estimatesSubset <- estimates |>
   filter(ciMethod == "asymptotic", targetId == 739138, outcomeId > 10 | outcomeId == 1)
