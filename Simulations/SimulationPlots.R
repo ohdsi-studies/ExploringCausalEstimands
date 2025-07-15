@@ -100,12 +100,12 @@ vizData <- bind_rows(
 vizData$label <- factor(vizData$label, levels = c("Within susceptibles", 
                                                   "Average without depletion", 
                                                   "Average over target"))
-ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
+ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
   geom_hline(yintercept = 0) +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
   scale_y_continuous("Hazard Ratio", breaks = log(c(1, 2, 3, 4, 5, 6, 7)), labels = c(1, 2, 3, 4, 5, 6,7 )) +
-  scale_color_manual(values = c("#EB6622", "#11A08A", "#336B91")) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid")) +
   theme(
     panel.grid.minor = element_blank(),
     legend.title = element_blank(),
