@@ -6,7 +6,7 @@ library(ggplot2)
 library(dplyr)
 library(Cyclops)
 
-maxCores <- 16
+maxCores <- 13
 replications <- 1000
 tempFolder <- "e:/temp/simTemp"
 
@@ -99,8 +99,10 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
 }
 allEstimates <- bind_rows(allEstimates)
 ParallelLogger::stopCluster(cluster)
+saveRDS(allEstimates, "Simulations/allEstimates.rds")
 
-
+# Plot type 1 and 2 error ------------------------------------------------------
+allEstimates <- readRDS("Simulations/allEstimates.rds")
 
 errorStats <- allEstimates |>
   mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
@@ -121,12 +123,6 @@ errorStats <- allEstimates |>
 
 library(ggplot2)
 library(ggh4x)
-colors <- c(
-  "#ff7921", # orange
-  "#94ad73", # matcha
-  "#73655d", # gray
-  "#d99b77" # brown
-)
 
 vizData <- errorStats |>
   filter(ciMethod == "asymptotic", ) |>
@@ -144,7 +140,6 @@ ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) 
   geom_line(aes(linetype = Contrast), size = 1.25, alpha = 0.75) +
   scale_y_continuous("Error (type 1 or 2)") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
-  # facet_grid(trueEffectType~depletionOfSusceptibles, scales = "free_y") +
   facet_nested(trueEffectType~depletionOfSusceptibles + sampleSize, scales = "free_y") +
   theme(
     panel.grid.minor = element_blank(),
