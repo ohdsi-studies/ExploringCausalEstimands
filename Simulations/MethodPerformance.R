@@ -2,7 +2,6 @@ source("Simulations/SimulationFunctions.R")
 source("Common/FunctionsForEstimands.R")
 
 library(survival)
-library(ggplot2)
 library(dplyr)
 library(Cyclops)
 
@@ -47,9 +46,6 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
                                                 if (sampleSize == "big") "" else "_small"))
       if (file.exists(fileName)) {
         estimates <- readRDS(fileName)
-        # estimates <- estimates |>
-        #   mutate(sampleSize = !!sampleSize)
-        # saveRDS(estimates, fileName)
       } else {
         settings <- createSimulationSettings()
         if (depletionOfSusceptibles) {
@@ -102,6 +98,11 @@ ParallelLogger::stopCluster(cluster)
 saveRDS(allEstimates, "Simulations/allEstimates.rds")
 
 # Plot type 1 and 2 error ------------------------------------------------------
+library(ggplot2)
+library(ggh4x)
+library(RColorBrewer)
+library(dplyr)
+
 allEstimates <- readRDS("Simulations/allEstimates.rds")
 
 errorStats <- allEstimates |>
@@ -121,8 +122,6 @@ errorStats <- allEstimates |>
   mutate(errorType = if_else(trueEffectType == "null", "type 1", "type 2"))
 
 
-library(ggplot2)
-library(ggh4x)
 
 vizData <- errorStats |>
   filter(ciMethod == "asymptotic", ) |>
@@ -135,11 +134,13 @@ optimal <- tibble(
   trueEffectType = c("True effect: Null", "True effect: Multiplicative", "True effect: Additive"),
   y = c(0.05, 0, 0)
 )
+myPalette = brewer.pal(4, "Dark2")
 ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) +
   geom_hline(aes(yintercept = y), data = optimal) +
   geom_line(aes(linetype = Contrast), size = 1.25, alpha = 0.75) +
   scale_y_continuous("Error (type 1 or 2)") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
+  scale_color_manual(values = myPalette) +
   facet_nested(trueEffectType~depletionOfSusceptibles + sampleSize, scales = "free_y") +
   theme(
     panel.grid.minor = element_blank(),

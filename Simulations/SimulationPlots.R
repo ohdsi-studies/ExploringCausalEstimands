@@ -5,6 +5,7 @@ library(survival)
 library(ggplot2)
 library(dplyr)
 library(Cyclops)
+library(RColorBrewer)
 
 settings <- createSimulationSettings()
 
@@ -15,8 +16,8 @@ vizData <- tibble(
   y = settings$baselineHazardFunction(x)
 )
 ggplot(vizData, aes(x = x, y = y)) +
-  geom_line(color = "#336B91", linewidth = 1) +
-  geom_hline(yintercept = 0) +
+  geom_line(color = "black", linewidth = 1) +
+  geom_hline(yintercept = 0, color = "darkgray") +
   scale_x_continuous("Time (days)") +
   scale_y_continuous("Hazard (daily risk of outcome)") +
   theme(
@@ -34,17 +35,40 @@ vizData <- bind_rows(
   )
 )
 ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
-  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
   scale_y_continuous("Hazard Ratio", breaks = log(c(1, 2, 3, 4, 5, 6, 7)), labels = c(1, 2, 3, 4, 5, 6,7 )) +
-  scale_color_manual(values = c("#336B91")) +
+  scale_color_manual(values = "black") +
   theme(
     panel.grid.minor = element_blank(),
     legend.title = element_blank(),
     legend.position = "right"
   )
 ggsave(filename = "Simulations/HazardRatio.png", width = 7, height = 3.5, dpi = 300)
+
+
+rdFunction <- function(t) {dweibull(t, 1, 10)}
+vizData <- bind_rows(
+  tibble(
+    x = x,
+    y = rdFunction(x),
+    label = "Within susceptibles"
+  )
+)
+ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
+  geom_hline(yintercept = 0, color = "darkgray") +
+  geom_line(linewidth = 1, alpha = 0.7) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous("Risk Difference") + 
+  scale_color_manual(values = "black") +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "right"
+  )
+ggsave(filename = "Simulations/RiskDifference.png", width = 7, height = 3.5, dpi = 300)
+
 
 # Simulation ---------------------------------------------------------
 population <- simulatePopulation(settings, seed = 123)
@@ -68,8 +92,8 @@ vizData <- tibble(
   y = c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100])
 )
 ggplot(vizData, aes(x = x, y = y)) +
-  geom_hline(yintercept = 0) +
-  geom_line(linewidth = 1, color = "#336B91", alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "darkgray") +
+  geom_line(linewidth = 1, color = "black", alpha = 0.7) +
   scale_x_continuous("Time (days)") +
   scale_y_continuous("Fraction of target susceptible") +
   theme(
@@ -101,7 +125,7 @@ vizData$label <- factor(vizData$label, levels = c("Within susceptibles",
                                                   "Average without depletion", 
                                                   "Average over target"))
 ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
-  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
   scale_y_continuous("Hazard Ratio", breaks = log(c(1, 2, 3, 4, 5, 6, 7)), labels = c(1, 2, 3, 4, 5, 6,7 )) +
@@ -206,9 +230,10 @@ vizData$label <- factor(vizData$label, levels = c("Within susceptibles",
                                                   "Cox",
                                                   "Kaplan Meier",
                                                   "RMST"))
-colors <- c("#000000", "#000000", "#000000", "#EB6622", "#11A08A", "#FBC511", "#69AED5", "#336B91")
+# colors <- c("#000000", "#000000", "#000000", "#EB6622", "#11A08A", "#FBC511", "#69AED5", "#336B91")
+colors <- c("#000000", "#000000", "#000000", brewer.pal(4, "Dark2"))
 ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
-  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 0, color = "darkgray") +
   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, size = 0) +
   geom_line(aes(linetype = label), linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +

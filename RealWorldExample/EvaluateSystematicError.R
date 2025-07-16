@@ -16,47 +16,41 @@ estimates <- estimatesMatched |>
   inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId")) |>
   mutate(adjustment = "PS matching")
 
-# Compute metrics --------------------------------------------------------------
-
+# Plot type 1 error --------------------------------------------------------------------------------
 computeType1Error <- function(lb, ub, h0 = 1) {
   rejectNull <- (!is.na(lb) & h0 < lb) | (!is.na(ub) & h0 > ub)
   return(mean(rejectNull))
 }
 
-computeMeanPrecision <- function(se) {
-  se[is.na(se)] <- 999
-  precision <- 1 / se^2
-  return(exp(mean(log(precision))))
-}
-
-# computeEase <- function(logRr, seLogRr) {
-#   null <- EmpiricalCalibration::fitMcmcNull(logRr, seLogRr)
-#   ease <- EmpiricalCalibration::computeExpectedAbsoluteSystematicError(null)
-#   return(ease$ease)
-# }
-
 type1Error <- estimates |>
   mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
   filter(outcomeId %in% negativeControls$conceptId) |>
-  group_by(targetId, comparatorId, timePoint, estimand, ciMethod, adjustment) |>
+  group_by(targetId, comparatorId, timePoint, estimand, model, contrast, ciMethod, adjustment) |>
   summarise(
     count = n(),
     type1Error = computeType1Error(lb, ub, h0),
-    meanPrecision = computeMeanPrecision(se),
-    # ease = computeEase(if_else(contrast == "ratio", log(estimate), estimate), se),
     .groups = "drop"
   )
 
-type2Error <- estimates |>
-  mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
-  filter(!outcomeId %in% negativeControls$conceptId) |>
-  group_by(targetId, comparatorId, timePoint, estimand, ciMethod, adjustment) |>
-  summarise(
-    count = n(),
-    type2Error = 1 - computeType1Error(lb, ub, h0),
-    meanPrecision = computeMeanPrecision(se),
-    .groups = "drop"
+vizData <- type1Error |>
+  filter(ciMethod == "asymptotic") |>
+  mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
+         Model = model,
+         example = if_else(targetId == 739138, "Sertraline vs bupropion for suicide attempt or ideation", "Lisinopril vs hydrochlorothiazide for angioedema"))
+
+myPalette = brewer.pal(4, "Dark2")
+ggplot(vizData, aes(x = timePoint, y = type1Error, group = estimand, color = Model)) +
+  geom_hline(yintercept = 0.05) +
+  geom_line(aes(linetype = Contrast), size = 1.25, alpha = 0.75) +
+  scale_y_continuous("Type 1 error") +
+  scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
+  scale_color_manual(values = myPalette) +
+  facet_grid(~example) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "top"
   )
+ggsave("RealWorldExample/Type1Error.png", width = 9, height = 4, dpi = 300)
 
 # Plot estimates ---------------------------------------------------------------
 library(ggplot2)
@@ -73,7 +67,8 @@ plotEstimatesPerTimePoint <- function(estimatesSubset, title, fileName) {
            control = if_else(outcomeId %in% negativeControls$conceptId, "Negative control", "Positive control"),
            logEstimate = if_else(contrast == "ratio", log(estimate), estimate),
            estimand = if_else(contrast == "ratio", paste("Log", estimand, sep = "\n"), estimand),
-           timePoint = factor(paste(timePoint, "days"), levels = paste(timePoints, "days"))) |>
+           timePoint = factor(paste(timePoint, "days"), levels = paste(timePoints, "days")),
+           logEstimate = if_else(model == "AFT", -logEstimate, logEstimate)) |>
     filter(!is.infinite(logEstimate))
   seScaleFactors <- vizData |>
     # group_by(timePoint, estimand) |>
