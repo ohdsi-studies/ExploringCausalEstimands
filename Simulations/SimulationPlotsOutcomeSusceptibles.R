@@ -146,6 +146,7 @@ ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
   scale_x_continuous("Time (days)") +
   scale_y_continuous("Hazard Ratio", breaks = log(c(1, 2, 3, 4, 5, 6, 7)), labels = c(1, 2, 3, 4, 5, 6,7 )) +
   scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid")) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(log(0.75), log(7))) +
   theme(
     panel.grid.minor = element_blank(),
     legend.title = element_blank(),
@@ -261,7 +262,7 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
   scale_color_manual(values = colors) +
   scale_fill_manual(values = colors) +
   scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid")) +
-  coord_cartesian(xlim = c(0, 100), ylim = c(log(0.5), log(7))) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(log(0.75), log(7))) +
   theme(
     panel.grid.minor = element_blank(),
     legend.title = element_blank(),
