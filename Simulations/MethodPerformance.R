@@ -49,9 +49,9 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
       } else {
         settings <- createSimulationSettings()
         if (depletionOfSusceptibles) {
-          settings$pSusceptible <- 0.2
+          settings$pEffectSusceptible <- 0.2
         } else {
-          settings$pSusceptible <- 1
+          settings$pEffectSusceptible <- 1
         }
         if (trueEffectType == "null") {
           settings$logHrFunction <- function(t) {0}

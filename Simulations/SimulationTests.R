@@ -117,7 +117,7 @@ n <- 1000
 lambdaBaselineHazard <- 50 # Scale parameter for the baseline hazard
 kBaselineHazard <- 1       # Shape parameter for the baseline hazard
 censorHazard <- 0.01
-pSusceptible <- 0.05
+pEffectSusceptible <- 0.05
 lambdaLogHr <- 10          # Scale parameter for the hazard ratio
 kLogHr <- 1.5              # Shape parameter for the hazard ratio
 multiplierLogHr <- 100
@@ -129,7 +129,7 @@ pA <- 0.5
 coverage <- 0
 for (i in seq_len(iter)) {
   a <- rbinom(n, 1, pA)
-  susceptible <- rbinom(n, 1, pSusceptible)
+  susceptible <- rbinom(n, 1, pEffectSusceptible)
 
   atRisk <- rep(TRUE, n)
   survivalTime <- rep(1001, n)
@@ -166,7 +166,7 @@ n <- 1000
 lambdaBaselineHazard <- 50 # Scale parameter for the baseline hazard
 kBaselineHazard <- 1       # Shape parameter for the baseline hazard
 censorHazard <- 0.01
-pSusceptible <- 0.05
+pEffectSusceptible <- 0.05
 lambdaLogHr <- 10          # Scale parameter for the hazard ratio
 kLogHr <- 1.5              # Shape parameter for the hazard ratio
 multiplierLogHr <- 100
@@ -178,7 +178,7 @@ pA <- 0.5
 coverage <- 0
 for (i in seq_len(iter)) {
   a <- rbinom(n, 1, pA)
-  susceptible <- rbinom(n, 1, pSusceptible)
+  susceptible <- rbinom(n, 1, pEffectSusceptible)
   nSusceptible <- sum(susceptible)
   
   atRisk <- rep(TRUE, n)

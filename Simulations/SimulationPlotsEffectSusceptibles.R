@@ -85,11 +85,11 @@ print(sprintf("Hazard ratio = %0.2f (95%% CI: %0.2f - %0.2f)",
 # Plots of estimates -------------------------------------------------------------------------------
 
 # Depletion of susceptibles
-targetSusceptiblesOverTime <- attr(population, "targetSusceptiblesOverTime")
+targetEffectSusceptiblesOverTime <- attr(population, "targetEffectSusceptiblesOverTime")
 targetOverTime <- attr(population, "targetOverTime")
 vizData <- tibble(
   x = x,
-  y = c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100])
+  y = c(settings$pEffectSusceptible, targetEffectSusceptiblesOverTime[1:100] / targetOverTime[1:100])
 )
 ggplot(vizData, aes(x = x, y = y)) +
   geom_hline(yintercept = 0, color = "darkgray") +
@@ -104,6 +104,8 @@ ggplot(vizData, aes(x = x, y = y)) +
 ggsave(filename = "Simulations/FractionSusceptible.png", width = 5, height = 3.5, dpi = 300)
 
 # True effect given depletion of susceptibles
+trueHazardRatioOverTime <- attr(population, "trueHazardRatioOverTime")
+
 vizData <- bind_rows(
   tibble(
     x = x,
@@ -112,18 +114,19 @@ vizData <- bind_rows(
   ),
   tibble(
     x = x,
-    y = settings$logHrFunction(x) * c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
-    label = "Average over target"
+    y = c(settings$logHrFunction(0), log(trueHazardRatioOverTime[1:100])),
+    label = "Average over population at risk"
   ),
   tibble(
     x = x,
-    y = settings$logHrFunction(x) * settings$pSusceptible,
+    y = log(exp(settings$logHrFunction(x)) * settings$pEffectSusceptible + (1 - settings$pEffectSusceptible)),
     label = "Average without depletion"
   )
 )
+
 vizData$label <- factor(vizData$label, levels = c("Within susceptibles", 
                                                   "Average without depletion", 
-                                                  "Average over target"))
+                                                  "Average over population at risk"))
 ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
@@ -204,20 +207,17 @@ vizData <- bind_rows(
   tibble(
     x = x,
     y = settings$logHrFunction(x),
-    label = "Within susceptibles",
-    lineType = "solid"
+    label = "Within susceptibles"
   ),
   tibble(
     x = x,
-    y = settings$logHrFunction(x) * c(settings$pSusceptible, targetSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
-    label = "Average over target",
-    lineType = "dashed"
+    y = c(settings$logHrFunction(0), log(trueHazardRatioOverTime[1:100])),
+    label = "Average over population at risk"
   ),
   tibble(
     x = x,
-    y = settings$logHrFunction(x) * settings$pSusceptible,
-    label = "Average without depletion",
-    lineType = "dotted"
+    y = log(exp(settings$logHrFunction(x)) * settings$pEffectSusceptible + (1 - settings$pEffectSusceptible)),
+    label = "Average without depletion"
   ),
   estimates,
   coxEstimate
@@ -225,7 +225,7 @@ vizData <- bind_rows(
 
 vizData$label <- factor(vizData$label, levels = c("Within susceptibles", 
                                                   "Average without depletion", 
-                                                  "Average over target",
+                                                  "Average over population at risk",
                                                   "AFT",
                                                   "Cox",
                                                   "Kaplan Meier",
