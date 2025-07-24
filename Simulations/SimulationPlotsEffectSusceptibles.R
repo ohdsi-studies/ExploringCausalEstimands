@@ -81,6 +81,21 @@ print(sprintf("Hazard ratio = %0.2f (95%% CI: %0.2f - %0.2f)",
               hr,
               ci[1],
               ci[2]))
+settingsCounterFactual <- settings
+settingsCounterFactual$logHrFunction <- NULL
+populationCounterFactual <- simulatePopulation(settingsCounterFactual, seed = 123)
+ratio <- c()
+for (t in 1:100) {
+  exposedOutcomes <- population |>
+    filter(a == 1, survivalTime <= t) |>
+    summarise(sum(y)) |>
+    pull()
+  exposedOutcomesCounterFactual <- populationCounterFactual |>
+    filter(a == 1, survivalTime <= t) |>
+    summarise(sum(y)) |>
+    pull()
+  ratio[t] <- exposedOutcomes / exposedOutcomesCounterFactual
+}
 
 # Plots of estimates -------------------------------------------------------------------------------
 
@@ -121,12 +136,18 @@ vizData <- bind_rows(
     x = x,
     y = log(exp(settings$logHrFunction(x)) * settings$pEffectSusceptible + (1 - settings$pEffectSusceptible)),
     label = "Average without depletion"
+  ),
+  tibble(
+    x = x,
+    y = c(0, log(ratio)),
+    label = "Observed outcomes / counterfactual"
   )
 )
 
 vizData$label <- factor(vizData$label, levels = c("Within susceptibles", 
                                                   "Average without depletion", 
-                                                  "Average over population at risk"))
+                                                  "Average over population at risk",
+                                                  "Observed outcomes / counterfactual"))
 ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
@@ -184,8 +205,8 @@ ParallelLogger::stopCluster(cluster)
 
 estimates <- estimates |>
   filter(ciMethod == "asymptotic",
-         contrast == "ratio",
-         model != "Cox") |>
+         contrast == "ratio") |>
+         #model != "Cox") |>
   transmute(x = timePoint,
             y = log(estimate),
             ymin = log(lb),
@@ -219,19 +240,25 @@ vizData <- bind_rows(
     y = log(exp(settings$logHrFunction(x)) * settings$pEffectSusceptible + (1 - settings$pEffectSusceptible)),
     label = "Average without depletion"
   ),
-  estimates,
-  coxEstimate
+  tibble(
+    x = x,
+    y = c(0, log(ratio)),
+    label = "Observed outcomes / counterfactual"
+  ),
+  estimates
+  # coxEstimate
 )
 
 vizData$label <- factor(vizData$label, levels = c("Within susceptibles", 
                                                   "Average without depletion", 
                                                   "Average over population at risk",
+                                                  "Observed outcomes / counterfactual",
                                                   "AFT",
                                                   "Cox",
                                                   "Kaplan Meier",
                                                   "RMST"))
 # colors <- c("#000000", "#000000", "#000000", "#EB6622", "#11A08A", "#FBC511", "#69AED5", "#336B91")
-colors <- c("#000000", "#000000", "#000000", brewer.pal(4, "Dark2"))
+colors <- c("#000000", "#000000", "#000000", "#000000", brewer.pal(4, "Dark2"))
 ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, size = 0) +
@@ -246,7 +273,7 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
                                          name = "Risk ratio")) +
   scale_color_manual(values = colors) +
   scale_fill_manual(values = colors) +
-  scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid")) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotdash", "solid", "solid", "solid", "solid")) +
   coord_cartesian(xlim = c(0, 100), ylim = c(log(1), log(7))) +
   theme(
     panel.grid.minor = element_blank(),
@@ -262,7 +289,8 @@ subset <- vizData |>
                       "Average without depletion", 
                       "Average over population at risk",
                       "Cox"))
-ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
+subsetColors <- colors[c(1, 2, 3, 5)]
+ggplot(subset, aes(x = x, y = y, color = label, fill = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, size = 0) +
   geom_line(aes(linetype = label), linewidth = 1, alpha = 0.7) +
@@ -274,8 +302,8 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
                                          breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
                                          labels = c(1, 2, 3, 4, 5, 6, 7),
                                          name = "Risk ratio")) +
-  scale_color_manual(values = colors) +
-  scale_fill_manual(values = colors) +
+  scale_color_manual(values = subsetColors) +
+  scale_fill_manual(values = subsetColors) +
   scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid")) +
   coord_cartesian(xlim = c(0, 100), ylim = c(log(1), log(7))) +
   theme(
@@ -284,5 +312,36 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
     legend.position = "right"
   )
 
-ggsave(filename = "Simulations/HrsAndRrs.png", width = 7, height = 3.5, dpi = 300)
+ggsave(filename = "Simulations/HrsAndRrsCoxOnly.png", width = 7, height = 3.5, dpi = 300)
+
+subset <- vizData |>
+  filter(label %in% c("Within susceptibles", 
+                      "Average without depletion", 
+                      "Average over population at risk",
+                      "Cox",
+                      "Kaplan Meier"))
+subsetColors <- colors[c(1, 2, 3, 5, 6)]
+ggplot(subset, aes(x = x, y = y, color = label, fill = label, group = label)) +
+  geom_hline(yintercept = 0, color = "darkgray") +
+  geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, size = 0) +
+  geom_line(aes(linetype = label), linewidth = 1, alpha = 0.7) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous("Hazard Ratio", 
+                     breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
+                     labels = c(1, 2, 3, 4, 5, 6, 7),
+                     sec.axis = sec_axis(transform = ~., 
+                                         breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
+                                         labels = c(1, 2, 3, 4, 5, 6, 7),
+                                         name = "Risk ratio")) +
+  scale_color_manual(values = subsetColors) +
+  scale_fill_manual(values = subsetColors) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid")) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(log(1), log(7))) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "right"
+  )
+
+ggsave(filename = "Simulations/HrsAndRrsCoxAndKmOnly.png", width = 7, height = 3.5, dpi = 300)
 
