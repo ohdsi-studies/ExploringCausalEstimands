@@ -202,7 +202,7 @@ ggplot(merged, aes(x = estimate30, y = estimate90)) +
   geom_point(alpha = 0.4)
 
 
-e <- vizData |>
+e <- allEstimates |>
   filter(trueEffectType == "multiplicative",
          depletionOfSusceptibles == "none",
          sampleSize == "big",
@@ -213,10 +213,30 @@ ggplot(e, aes(x = timePoint, y = se, group = timePoint)) +
   geom_boxplot() +
   scale_x_log10() +
   scale_y_continuous("Standard error") +
-  facet_grid(contrast~., scale = "free_y")
+  facet_nested(contrast + model~., scale = "free_y")
 
 ggplot(e, aes(x = timePoint, y = estimate, group = timePoint)) +
   geom_boxplot() +
   scale_x_log10() +
   scale_y_continuous("Point estimate") +
-  facet_grid(contrast~., scale = "free_y")
+  facet_nested(contrast + model~., scale = "free_y")
+
+
+e |>
+  filter(contrast == "ratio") |>
+  mutate(newLb = exp(log(estimate) + qnorm(0.025) * se)) |>
+  group_by(model, timePoint) |>
+  summarise(mean(newLb < 1))
+
+vizData <- e |>
+  filter(seed %in% 1:4, contrast == "ratio")
+
+ggplot(vizData, aes(x = timePoint, y = estimate)) +
+  geom_hline(yintercept = 1) +
+  geom_errorbar(aes(ymin = lb, ymax = ub)) +
+  geom_point() +
+  scale_x_log10("Time point") +
+  scale_y_continuous("Ratio") +
+  coord_cartesian(ylim = c(0.75, 1.75)) +
+  facet_grid(seed ~ model)
+ggsave("Simulations/CoxVsKmEstimates.png", width = 6, height = 6)
