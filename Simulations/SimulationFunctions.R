@@ -34,13 +34,10 @@ simulatePopulation <- function(settings, seed = NULL) {
   a <- rbinom(settings$n, 1, settings$pA)
   effectSusceptible <- rbinom(settings$n, 1, settings$pEffectSusceptible)
   outcomeSusceptible <- rbinom(settings$n, 1, settings$pOutcomeSusceptible)
-  baselineHazardMultiplierOutcomeSusc <- if_else(outcomeSusceptible == 1, settings$baselineHazardMultiplier, 0)
-  
+
   atRisk <- rep(TRUE, settings$n)
   survivalTime <- rep(1001, settings$n)
   y <- rep(0, settings$n)
-  # averageLogHr <- 0
-  denominator <- 0
   trueHazardRatioOverTime <- rep(NA, 1000)
   targetOverTime <- rep(NA, 1000)
   comparatorOverTime <- rep(NA, 1000)
@@ -58,20 +55,19 @@ simulatePopulation <- function(settings, seed = NULL) {
     targetOutcomeSusceptiblesOverTime[t] <- sum(atRisk & a & outcomeSusceptible)
     comparatorOutcomeSusceptiblesOverTime[t] <- sum(atRisk & !a & outcomeSusceptible)
     
-    baselineHazards <- settings$baselineHazardFunction(t) * baselineHazardMultiplierOutcomeSusc
+    baselineHazards <- settings$baselineHazardFunction(t) * settings$baselineHazardMultiplier
     if (is.null(settings$logHrFunction)) {
       logHr <- 0
     } else {
       logHr <- settings$logHrFunction(t)
-      # averageLogHr <- averageLogHr + logHr * nAtRisk
     }
     if (is.null(settings$rdFunction)) {
       rd <- 0
     } else {
       rd <- settings$rdFunction(t)
     }
-    denominator <- denominator + nAtRisk
-    hazards <- ifelse(a[atRisk] == 1 & effectSusceptible[atRisk] == 1, exp(logHr) * baselineHazards[atRisk] + rd, baselineHazards[atRisk])
+    hazards <- if_else(a[atRisk] == 1 & effectSusceptible[atRisk] == 1, exp(logHr) * baselineHazards[atRisk] + rd, baselineHazards[atRisk])
+    hazards <- if_else(outcomeSusceptible[atRisk] == 1, hazards, 0)
     trueHazardRatioOverTime[t] <- mean(hazards[a[atRisk] == 1]) / mean(hazards[a[atRisk] != 1])
     outcome <- runif(nAtRisk) < hazards
     censored <- runif(nAtRisk) < settings$censorHazard
@@ -80,7 +76,6 @@ simulatePopulation <- function(settings, seed = NULL) {
     y[atRisk] <- outcome
     atRisk[atRisk] <- !noLongerAtRisk
   }
-  # averageLogHr <- averageLogHr / denominator
   
   population <- tibble(
     a = a,
@@ -95,8 +90,5 @@ simulatePopulation <- function(settings, seed = NULL) {
   attr(population, "targetEffectSusceptiblesOverTime") <- targetEffectSusceptiblesOverTime
   attr(population, "targetOutcomeSusceptiblesOverTime") <- targetOutcomeSusceptiblesOverTime
   attr(population, "comparatorOutcomeSusceptiblesOverTime") <- comparatorOutcomeSusceptiblesOverTime
-  # if (!is.null(settings$logHrFunction)) {
-  #   attr(population, "averageLogHr") <- averageLogHr
-  # }
   return(population)
 }

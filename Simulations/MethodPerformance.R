@@ -31,7 +31,7 @@ simulateOne <- function(seed, settings) {
 
 allEstimates <- list()
 for (trueEffectType in c("null", "multiplicative", "additive")) {
-  for (depletionOfSusceptibles in c(TRUE, FALSE)) {
+  for (depletionOfSusceptibles in c("effect", "outcome", "none")) {
     for (sampleSize in c("big", "small")) {
       message("Simulating using trueEffectType = ",
               trueEffectType, 
@@ -40,7 +40,7 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
               ", sample size = ",
               sampleSize)
       
-      fileName <- file.path(tempFolder, sprintf("Sim_%s_d%s%s.rds", 
+      fileName <- file.path(tempFolder, sprintf("Sim_%s_%s_%s.rds", 
                                                 trueEffectType, 
                                                 depletionOfSusceptibles,
                                                 if (sampleSize == "big") "" else "_small"))
@@ -48,16 +48,23 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
         estimates <- readRDS(fileName)
       } else {
         settings <- createSimulationSettings()
-        if (depletionOfSusceptibles) {
+        if (depletionOfSusceptibles == "effect") {
           settings$pEffectSusceptible <- 0.2
-        } else {
+          settings$pOutcomeSusceptible <- 1
+        } else if (depletionOfSusceptibles == "outcome") {
           settings$pEffectSusceptible <- 1
+          settings$pOutcomeSusceptible <- 0.2
+        } else if (depletionOfSusceptibles == "none") {
+          settings$pEffectSusceptible <- 1
+          settings$pOutcomeSusceptible <- 1
+        } else {
+          stop("Unknown depletion of susceptibles: ", depletionOfSusceptibles)
         }
         if (trueEffectType == "null") {
           settings$logHrFunction <- function(t) {0}
           settings$rdFunction <- NULL
         } else if (trueEffectType == "multiplicative") {
-          if (depletionOfSusceptibles) {
+          if (depletionOfSusceptibles != "none") {
             settings$logHrFunction <- function(t) {25 * dweibull(t, 1.5, 10)}
           } else {
             settings$logHrFunction <- function(t) {5 * dweibull(t, 1.5, 10)}
@@ -65,7 +72,7 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
           settings$rdFunction <- NULL
         } else if (trueEffectType == "additive") {
           settings$logHrFunction <- NULL
-          if (depletionOfSusceptibles) {
+          if (depletionOfSusceptibles != "none") {
             settings$rdFunction <- function(t) {dweibull(t, 1, 10)}
           } else {
             settings$rdFunction <- function(t) {0.2 * dweibull(t, 1, 10)}
@@ -80,6 +87,7 @@ for (trueEffectType in c("null", "multiplicative", "additive")) {
         } else {
           stop("Unknown sample size: ", sampleSize)
         }
+        settings$baselineHazardMultiplier <- runif(settings$n, 0.5, 2)
         
         estimates <- ParallelLogger::clusterApply(cluster, seq_len(replications), simulateOne, settings = settings)
         estimates <- bind_rows(estimates)
@@ -123,12 +131,21 @@ errorStats <- allEstimates |>
 
 
 
+# vizData <- errorStats |>
+#   filter(ciMethod == "asymptotic", depletionOfSusceptibles != "effect") |>
+#   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
+#          Model = model,
+#          trueEffectType = paste("True effect:", SqlRender::camelCaseToTitleCase(trueEffectType)),
+#          depletionOfSusceptibles = if_else(depletionOfSusceptibles == "outcome", "Depletion of susceptibles", "No depletion of susceptibles"),
+#          sampleSize = if_else(sampleSize == "big", "2,500 patients", "1,250 patients"))
 vizData <- errorStats |>
-  filter(ciMethod == "asymptotic", ) |>
+  filter(ciMethod == "asymptotic") |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
          Model = model,
          trueEffectType = paste("True effect:", SqlRender::camelCaseToTitleCase(trueEffectType)),
-         depletionOfSusceptibles = if_else(depletionOfSusceptibles, "Depletion of susceptibles", "No depletion of susceptibles"),
+         depletionOfSusceptibles = case_when(depletionOfSusceptibles == "outcome" ~ "Depletion of outcome susceptibles", 
+                                             depletionOfSusceptibles == "effect" ~ "Depletion of effect susceptibles", 
+                                             .default = "No depletion of susceptibles"),
          sampleSize = if_else(sampleSize == "big", "2,500 patients", "1,250 patients"))
 optimal <- tibble(
   trueEffectType = c("True effect: Null", "True effect: Multiplicative", "True effect: Additive"),
@@ -146,5 +163,60 @@ ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) 
     panel.grid.minor = element_blank(),
     legend.position = "top"
   )
-ggsave("Simulations/Type1And2Error.png", width = 9, height = 6, dpi = 300)
+ggsave("Simulations/Type1And2Error.png", width = 11, height = 6, dpi = 300)
 
+
+e90 <- allEstimates |>
+  filter(trueEffectType == "multiplicative",
+         depletionOfSusceptibles == "none",
+         sampleSize == "big",
+         ciMethod == "asymptotic",
+         timePoint == 90,
+         model == "Kaplan Meier",
+         contrast == "difference")
+
+e30 <- allEstimates |>
+  filter(trueEffectType == "multiplicative",
+         depletionOfSusceptibles == "none",
+         sampleSize == "big",
+         ciMethod == "asymptotic",
+         timePoint == 30,
+         model == "Kaplan Meier",
+         contrast == "difference")
+e90
+e30
+
+merged <- inner_join(
+  e30 |>
+    select(seed, estimate30 = estimate, lb30 = lb, ub30 = ub, se30 = se),
+  e90 |>
+    select(seed, estimate90 = estimate, lb90 = lb, ub90 = ub, se90 = se),
+  by = join_by(seed)
+)
+ggplot(merged, aes(x = se30, y = se90)) +
+  geom_abline(slope = 1) +
+  geom_point(alpha = 0.4)
+
+ggplot(merged, aes(x = estimate30, y = estimate90)) +
+  geom_abline(slope = 1) +
+  geom_point(alpha = 0.4)
+
+
+e <- vizData |>
+  filter(trueEffectType == "multiplicative",
+         depletionOfSusceptibles == "none",
+         sampleSize == "big",
+         ciMethod == "asymptotic",
+         model %in% c("Kaplan Meier", "Cox"))
+
+ggplot(e, aes(x = timePoint, y = se, group = timePoint)) +
+  geom_boxplot() +
+  scale_x_log10() +
+  scale_y_continuous("Standard error") +
+  facet_grid(contrast~., scale = "free_y")
+
+ggplot(e, aes(x = timePoint, y = estimate, group = timePoint)) +
+  geom_boxplot() +
+  scale_x_log10() +
+  scale_y_continuous("Point estimate") +
+  facet_grid(contrast~., scale = "free_y")
