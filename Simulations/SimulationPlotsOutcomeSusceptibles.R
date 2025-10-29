@@ -164,7 +164,13 @@ ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
-  scale_y_continuous("Hazard Ratio", breaks = log(c(1, 2, 3, 4, 5, 6, 7)), labels = c(1, 2, 3, 4, 5, 6,7 )) +
+  scale_y_continuous("Hazard Ratio", 
+                     breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
+                     labels = c(1, 2, 3, 4, 5, 6, 7),
+                     sec.axis = sec_axis(transform = ~., 
+                                         breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
+                                         labels = c(1, 2, 3, 4, 5, 6, 7),
+                                         name = "Risk ratio")) +
   scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotdash", "solid", "solid", "solid", "solid")) +
   coord_cartesian(xlim = c(0, 100), ylim = c(log(0.75), log(7))) +
   theme(
@@ -296,3 +302,33 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
   )
 
 ggsave(filename = "Simulations/HrsAndRrsOutcomeSusceptibles.png", width = 7, height = 3.5, dpi = 300)
+
+subset <- vizData |>
+  filter(label %in% c("Within susceptibles", 
+                      "Average without depletion", 
+                      "Average over population at risk",
+                      "Observed outcomes / counterfactual",
+                      "Cox"))
+ggplot(subset, aes(x = x, y = y, color = label, fill = label, group = label)) +
+  geom_hline(yintercept = 0, color = "darkgray") +
+  geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, size = 0) +
+  geom_line(aes(linetype = label), linewidth = 1, alpha = 0.7) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous("Hazard Ratio", 
+                     breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
+                     labels = c(1, 2, 3, 4, 5, 6, 7),
+                     sec.axis = sec_axis(transform = ~., 
+                                         breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
+                                         labels = c(1, 2, 3, 4, 5, 6, 7),
+                                         name = "Risk ratio")) +
+  scale_color_manual(values = colors[c(1, 2, 3, 4, 6)]) +
+  scale_fill_manual(values = colors[c(1, 2, 3, 4, 6)]) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotdash", "solid", "solid", "solid", "solid")) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(log(0.75), log(7))) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "right"
+  )
+
+ggsave(filename = "Simulations/HrOutcomeSusceptibles.png", width = 7, height = 3.5, dpi = 300)

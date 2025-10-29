@@ -229,7 +229,8 @@ e |>
   summarise(mean(newLb < 1))
 
 vizData <- e |>
-  filter(seed %in% 1:4, contrast == "ratio")
+  filter(seed %in% 1:4, contrast == "ratio") |>
+  mutate(seed = paste("Seed", seed))
 
 ggplot(vizData, aes(x = timePoint, y = estimate)) +
   geom_hline(yintercept = 1) +
