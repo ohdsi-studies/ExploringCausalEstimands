@@ -142,29 +142,31 @@ vizData <- errorStats |>
   filter(ciMethod == "asymptotic") |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
          Model = model,
-         trueEffectType = paste("True effect:", SqlRender::camelCaseToTitleCase(trueEffectType)),
+         trueEffectType = paste("True effect:", SqlRender::camelCaseToTitleCase(trueEffectType), sep = "\n"),
          depletionOfSusceptibles = case_when(depletionOfSusceptibles == "outcome" ~ "Depletion of outcome susceptibles", 
                                              depletionOfSusceptibles == "effect" ~ "Depletion of effect susceptibles", 
                                              .default = "No depletion of susceptibles"),
          sampleSize = if_else(sampleSize == "big", "2,500 patients", "1,250 patients"))
 optimal <- tibble(
-  trueEffectType = c("True effect: Null", "True effect: Multiplicative", "True effect: Additive"),
+  trueEffectType = c("True effect:\nNull", "True effect:\nMultiplicative", "True effect:\nAdditive"),
   y = c(0.05, 0, 0)
 )
 myPalette = brewer.pal(4, "Dark2")
 ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) +
   geom_hline(aes(yintercept = y), data = optimal) +
-  geom_line(aes(linetype = Contrast), size = 1.25, alpha = 0.75) +
+  geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.75) +
   scale_y_continuous("Error (type 1 or 2)") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
   scale_color_manual(values = myPalette) +
   facet_nested(trueEffectType~depletionOfSusceptibles + sampleSize, scales = "free_y") +
   theme(
+    axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
     panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(linewidth = 0.5, color = "white"),
     legend.position = "top"
   )
-ggsave("Simulations/Type1And2Error.png", width = 11, height = 6, dpi = 300)
-
+ggsave("Simulations/Type1And2Error.png", width = 7, height = 4.5, dpi = 300)
+ggsave("Simulations/Type1And2Error.svg", width = 7, height = 4.5, dpi = 300)
 
 e90 <- allEstimates |>
   filter(trueEffectType == "multiplicative",
