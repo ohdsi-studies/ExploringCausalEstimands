@@ -50,10 +50,13 @@ computeWeights <- function(data) {
     timePoint <- timePoints[i]
     riskControl <- 1 - summary(fit,times = timePoint, extend=TRUE)$surv[1]
     riskTreated <- 1 - summary(fit,times = timePoint, extend=TRUE)$surv[2]
+    cumHazardControl <- summary(fit,times = timePoint, extend=TRUE)$cumhaz[1]
+    cumHazardTreated <- summary(fit,times = timePoint, extend=TRUE)$cumhaz[2]
     results[[i]] <- tibble(
       timePoint = timePoint,
       rr = riskTreated / riskControl,
-      rd = riskTreated - riskControl
+      rd = riskTreated - riskControl,
+      chr = cumHazardTreated / cumHazardControl
     )
   }
   results <- bind_rows(results)
@@ -287,6 +290,23 @@ computeEstimands <- function(population,
            model = "Kaplan Meier",
            contrast = "difference",
            ciMethod = "asymptotic")
+  kmChrAsymptotic <- kmBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      se = sqrt(var(log(chr), na.rm = TRUE))
+    ) |>
+    inner_join(mainKmEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = chr,
+      lb = exp(log(chr) + qnorm(0.025) * se),
+      ub = exp(log(chr) + qnorm(0.975) * se),
+      se = se
+    ) |>
+    mutate(estimand = "Cumulative Hazard Ratio", 
+           model = "Kaplan Meier",
+           contrast = "ratio",
+           ciMethod = "asymptotic")
   kmRrPercentile <- kmBootStrap |>
     group_by(timePoint) |>
     summarise(
@@ -323,11 +343,32 @@ computeEstimands <- function(population,
            model = "Kaplan Meier",
            contrast = "difference",
            ciMethod = "percentile")
+  kmChrPercentile <- kmBootStrap |>
+    group_by(timePoint) |>
+    summarise(
+      lb = quantile(chr, 0.025, na.rm = TRUE),
+      ub = quantile(chr, 0.975, na.rm = TRUE),
+    ) |>
+    inner_join(mainKmEstimates, by = join_by(timePoint)) |>
+    transmute(
+      timePoint = timePoint,
+      estimate = chr,
+      lb = lb,
+      ub = ub,
+      se = (log(ub) - log(lb)) / (2 * qnorm(0.975)),
+    ) |>
+    mutate(estimand = "Cumulative Hazard Ratio", 
+           model = "Kaplan Meier",
+           contrast = "ratio",
+           ciMethod = "percentile")
+  
   kmEstimates <- bind_rows(
     kmRrAsymptotic,
     kmRrPercentile,
     kmRdAsymptotic,
-    kmRdPercentile
+    kmRdPercentile,
+    kmChrAsymptotic,
+    kmChrPercentile
   )
   
   # Cox and accelerated failure time estimates:
