@@ -12,4 +12,4 @@ cohortDatabaseSchema <- "scratch.scratch_mschuemi"
 cohortTable  <- "hrs_and_causality"
 options(sqlRenderTempEmulationSchema = "scratch.scratch_mschuemi")
 outputFolder <- "e:/HRsAndCausality"
-maxCores <- 16
+maxCores <- 13
