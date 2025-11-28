@@ -71,14 +71,20 @@ computeWeights <- function(data) {
   return(data)
 }
 
-.calculateAcceleratedFailureTime <- function(data) {
-  if ("weight" %in% colnames(data)) {
-    weights <- data$weight
+.calculateAcceleratedFailureTime <- function(dummy, data, sample = FALSE) {
+  if (sample) {
+    indices <- sample.int(nrow(data), nrow(data), replace = TRUE)
+    sampledData <- data[indices, ]
+  } else {
+    sampledData <- data
+  }
+  if ("weight" %in% colnames(sampledData)) {
+    weights <- sampledData$weight
   } else {
     weights <- NULL
   }
   fit <- tryCatch(survreg(Surv(survivalTime, y) ~ treatment,
-                          data = data,
+                          data = sampledData,
                           control = survreg.control(maxiter = 300),
                           dist = "weibull",
                           weights = weights),
@@ -86,7 +92,7 @@ computeWeights <- function(data) {
   )
   if (isTRUE(is.na(fit))) {
     fit <- survreg(Surv(survivalTime, y) ~ treatment,
-                   data = data,
+                   data = sampledData,
                    control = survreg.control(maxiter = 300),
                    dist = "weibull",
                    scale = 1,
@@ -234,7 +240,7 @@ computeWeights <- function(data) {
 
 computeEstimands <- function(population, 
                              timePoints = c(180, 365, 730, 1095, 1460),
-                             bootstrapSize = 1000, 
+                             bootstrapSize = 200, 
                              cluster = NULL) {
   if (is.null(cluster)) {
     cluster <- ParallelLogger::makeCluster(1)
@@ -377,11 +383,28 @@ computeEstimands <- function(population,
   for (i in seq_along(timePoints)) {
     timePoint <- timePoints[i]
     truncatedData <- .truncateData(population, timePoint)
-    afEstimate <- .calculateAcceleratedFailureTime(truncatedData) |>
+    aftMainEstimate <- .calculateAcceleratedFailureTime(NA, truncatedData)
+    aftBootStrap <- ParallelLogger::clusterApply(cluster, 
+                                                seq_len(bootstrapSize), 
+                                                .calculateAcceleratedFailureTime, 
+                                                data = truncatedData, 
+                                                sample = TRUE)
+    aftBootStrap <- bind_rows(aftBootStrap) 
+    aftAsymptotic <- aftMainEstimate |>
       mutate(estimand = "Acceleration Coefficient", 
              model = "AFT",
              contrast = "ratio",
              ciMethod = "asymptotic")
+    aftPercentile <- tibble(
+      estimate = aftMainEstimate$estimate,
+      lb = quantile(aftBootStrap$estimate, 0.025, na.rm = TRUE),
+      ub = quantile(aftBootStrap$estimate, 0.975, na.rm = TRUE),
+      se = sd(aftBootStrap$estimate, na.rm = TRUE),
+      estimand = "Acceleration Coefficient", 
+      model = "AFT",
+      contrast = "ratio",
+      ciMethod = "percentile"
+    )
     if ("weight" %in% colnames(truncatedData)) {
       hrMainEstimate <- .calculateCoxEstimate(NA, truncatedData)
       hrBootStrap <- ParallelLogger::clusterApply(cluster, 
@@ -410,7 +433,8 @@ computeEstimands <- function(population,
                ciMethod = "asymptotic")
     }
     afHrEstimates[[i]] <- bind_rows(
-      afEstimate,
+      aftAsymptotic,
+      aftPercentile,
       hrEstimate
     ) |>
       mutate(timePoint = timePoint)
