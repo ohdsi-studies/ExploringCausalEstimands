@@ -90,25 +90,31 @@ computeWeights <- function(data) {
                           weights = weights),
                   error = function(e) {NA}
   )
-  if (isTRUE(is.na(fit))) {
+  if (isTRUE(is.na(fit)) || fit$iter == 300) {
     fit <- survreg(Surv(survivalTime, y) ~ treatment,
                    data = sampledData,
-                   control = survreg.control(maxiter = 300),
+                   control = survreg.control(maxiter = 1000),
                    dist = "weibull",
                    scale = 1,
                    weights = weights)
   }
   logAf <- coef(fit)["treatment1"]
   af <- exp(logAf)
-  logCi <- confint(fit, parm = "treatment1")
-  ci <- exp(logCi)
-  se <- (logCi[2] - logCi[1]) / (2 * qnorm(0.975))
-  estimate <- tibble(
-    estimate = af,
-    lb = ci[1],
-    ub = ci[2],
-    se = se
-  )
+  if (sample) {
+    estimate <- tibble(
+      estimate = af
+    )
+  } else {
+    logCi <- confint(fit, parm = "treatment1")
+    ci <- exp(logCi)
+    se <- summary(fit)$table["treatment1", "Std. Error"]
+    estimate <- tibble(
+      estimate = af,
+      lb = ci[1],
+      ub = ci[2],
+      se = se
+    )
+  }
   return(estimate)
 }
 
@@ -256,6 +262,7 @@ computeEstimands <- function(population,
   
   # Kaplan-Meier-based estimates:
   mainKmEstimates <- .calculateKmEstimands(NA, population, timePoints)
+  message("KM bootstrap")
   kmBootStrap <- ParallelLogger::clusterApply(cluster, 
                                               seq_len(bootstrapSize), 
                                               .calculateKmEstimands, 
@@ -319,6 +326,7 @@ computeEstimands <- function(population,
     summarise(
       lb = quantile(rr, 0.025, na.rm = TRUE),
       ub = quantile(rr, 0.975, na.rm = TRUE),
+      se = sqrt(var(log(rr), na.rm = TRUE))
     ) |>
     inner_join(mainKmEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -326,7 +334,7 @@ computeEstimands <- function(population,
       estimate = rr,
       lb = lb,
       ub = ub,
-      se = (log(ub) - log(lb)) / (2 * qnorm(0.975)),
+      se = se,
     ) |>
     mutate(estimand = "Risk Ratio", 
            model = "Kaplan Meier",
@@ -337,6 +345,7 @@ computeEstimands <- function(population,
     summarise(
       lb = quantile(rd, 0.025, na.rm = TRUE),
       ub = quantile(rd, 0.975, na.rm = TRUE),
+      se = sqrt(var(rd, na.rm = TRUE))
     ) |>
     inner_join(mainKmEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -344,7 +353,7 @@ computeEstimands <- function(population,
       estimate = rd,
       lb = lb,
       ub = ub,
-      se = (ub - lb) / (2 * qnorm(0.975)),
+      se = se,
     ) |>
     mutate(estimand = "Risk Difference", 
            model = "Kaplan Meier",
@@ -355,6 +364,7 @@ computeEstimands <- function(population,
     summarise(
       lb = quantile(chr, 0.025, na.rm = TRUE),
       ub = quantile(chr, 0.975, na.rm = TRUE),
+      se = sqrt(var(log(chr), na.rm = TRUE))
     ) |>
     inner_join(mainKmEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -362,7 +372,7 @@ computeEstimands <- function(population,
       estimate = chr,
       lb = lb,
       ub = ub,
-      se = (log(ub) - log(lb)) / (2 * qnorm(0.975)),
+      se = se,
     ) |>
     mutate(estimand = "Cumulative Hazard Ratio", 
            model = "Kaplan Meier",
@@ -384,29 +394,31 @@ computeEstimands <- function(population,
     timePoint <- timePoints[i]
     truncatedData <- .truncateData(population, timePoint)
     aftMainEstimate <- .calculateAcceleratedFailureTime(NA, truncatedData)
-    aftBootStrap <- ParallelLogger::clusterApply(cluster, 
-                                                seq_len(bootstrapSize), 
-                                                .calculateAcceleratedFailureTime, 
-                                                data = truncatedData, 
-                                                sample = TRUE)
-    aftBootStrap <- bind_rows(aftBootStrap) 
+    # message("AFT bootstrap at timepoint ", timePoint)
+    # aftBootStrap <- ParallelLogger::clusterApply(cluster, 
+    #                                              seq_len(bootstrapSize), 
+    #                                              .calculateAcceleratedFailureTime, 
+    #                                              data = truncatedData, 
+    #                                              sample = TRUE)
+    # aftBootStrap <- bind_rows(aftBootStrap) 
     aftAsymptotic <- aftMainEstimate |>
       mutate(estimand = "Acceleration Coefficient", 
              model = "AFT",
              contrast = "ratio",
              ciMethod = "asymptotic")
-    aftPercentile <- tibble(
-      estimate = aftMainEstimate$estimate,
-      lb = quantile(aftBootStrap$estimate, 0.025, na.rm = TRUE),
-      ub = quantile(aftBootStrap$estimate, 0.975, na.rm = TRUE),
-      se = sd(aftBootStrap$estimate, na.rm = TRUE),
-      estimand = "Acceleration Coefficient", 
-      model = "AFT",
-      contrast = "ratio",
-      ciMethod = "percentile"
-    )
+    # aftPercentile <- tibble(
+    #   estimate = aftMainEstimate$estimate,
+    #   lb = quantile(aftBootStrap$estimate, 0.025, na.rm = TRUE),
+    #   ub = quantile(aftBootStrap$estimate, 0.975, na.rm = TRUE),
+    #   se = sd(aftBootStrap$estimate, na.rm = TRUE),
+    #   estimand = "Acceleration Coefficient", 
+    #   model = "AFT",
+    #   contrast = "ratio",
+    #   ciMethod = "percentile"
+    # )
     if ("weight" %in% colnames(truncatedData)) {
       hrMainEstimate <- .calculateCoxEstimate(NA, truncatedData)
+      message("Cox bootstrap at timepoint ", timePoint)
       hrBootStrap <- ParallelLogger::clusterApply(cluster, 
                                                   seq_len(bootstrapSize), 
                                                   .calculateCoxEstimate, 
@@ -434,7 +446,7 @@ computeEstimands <- function(population,
     }
     afHrEstimates[[i]] <- bind_rows(
       aftAsymptotic,
-      aftPercentile,
+      # aftPercentile,
       hrEstimate
     ) |>
       mutate(timePoint = timePoint)
@@ -443,6 +455,7 @@ computeEstimands <- function(population,
   
   # RMST
   mainMrstEstimates <- .calculateRmst(NA, population, timePoints)
+  message("MSTS bootstrap")
   mrstBootStrap <- ParallelLogger::clusterApply(cluster, 
                                                 seq_len(bootstrapSize), 
                                                 .calculateRmst, 
@@ -488,7 +501,8 @@ computeEstimands <- function(population,
     group_by(timePoint) |>
     summarise(
       lb = quantile(rmstDiff, 0.025, na.rm = TRUE),
-      ub = quantile(rmstDiff, 0.975, na.rm = TRUE)
+      ub = quantile(rmstDiff, 0.975, na.rm = TRUE),
+      se = sqrt(var(rmstDiff, na.rm = TRUE))
     ) |>
     inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -496,7 +510,7 @@ computeEstimands <- function(population,
       estimate = rmstDiff,
       lb = lb,
       ub = ub,
-      se = (ub - lb) / (2 * qnorm(0.975))
+      se = se
     ) |>
     mutate(estimand = "RMST Difference", 
            model = "RMST",
@@ -506,7 +520,8 @@ computeEstimands <- function(population,
     group_by(timePoint) |>
     summarise(
       lb = quantile(rmstRatio, 0.025, na.rm = TRUE),
-      ub = quantile(rmstRatio, 0.975, na.rm = TRUE)
+      ub = quantile(rmstRatio, 0.975, na.rm = TRUE),
+      se = sqrt(var(log(rmstRatio), na.rm = TRUE))
     ) |>
     inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -514,7 +529,7 @@ computeEstimands <- function(population,
       estimate = rmstRatio,
       lb = lb,
       ub = ub,
-      se = (log(ub) - log(lb)) / (2 * qnorm(0.975))
+      se = se
     ) |>
     mutate(estimand = "RMST Ratio", 
            model = "RMST",
