@@ -345,7 +345,7 @@ computeEstimands <- function(population,
     summarise(
       lb = quantile(rd, 0.025, na.rm = TRUE),
       ub = quantile(rd, 0.975, na.rm = TRUE),
-      se = sqrt(var(log(rd), na.rm = TRUE))
+      se = sqrt(var(rd, na.rm = TRUE))
     ) |>
     inner_join(mainKmEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -501,7 +501,8 @@ computeEstimands <- function(population,
     group_by(timePoint) |>
     summarise(
       lb = quantile(rmstDiff, 0.025, na.rm = TRUE),
-      ub = quantile(rmstDiff, 0.975, na.rm = TRUE)
+      ub = quantile(rmstDiff, 0.975, na.rm = TRUE),
+      se = sqrt(var(rmstDiff, na.rm = TRUE))
     ) |>
     inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -509,7 +510,7 @@ computeEstimands <- function(population,
       estimate = rmstDiff,
       lb = lb,
       ub = ub,
-      se = (ub - lb) / (2 * qnorm(0.975))
+      se = se
     ) |>
     mutate(estimand = "RMST Difference", 
            model = "RMST",
@@ -519,7 +520,8 @@ computeEstimands <- function(population,
     group_by(timePoint) |>
     summarise(
       lb = quantile(rmstRatio, 0.025, na.rm = TRUE),
-      ub = quantile(rmstRatio, 0.975, na.rm = TRUE)
+      ub = quantile(rmstRatio, 0.975, na.rm = TRUE),
+      se = sqrt(var(log(rmstRatio), na.rm = TRUE))
     ) |>
     inner_join(mainMrstEstimates, by = join_by(timePoint)) |>
     transmute(
@@ -527,7 +529,7 @@ computeEstimands <- function(population,
       estimate = rmstRatio,
       lb = lb,
       ub = ub,
-      se = (log(ub) - log(lb)) / (2 * qnorm(0.975))
+      se = se
     ) |>
     mutate(estimand = "RMST Ratio", 
            model = "RMST",
