@@ -5,10 +5,13 @@ library(survival)
 library(dplyr)
 
 timePoints <- c(2, 7, 30, 90, 180, 365)
-sampleSizes <- c(200000, 100000, 50000, 25000, 12500)
+sampleSizes <- c(100000, 10000, 1000)
 bootstrapSize <- 200
 
 cluster <- ParallelLogger::makeCluster(maxCores)
+ParallelLogger::clusterRequire(cluster, "survival")
+ParallelLogger::clusterRequire(cluster, "dplyr")
+ParallelLogger::clusterRequire(cluster, "adjustedCurves")
 
 ref <- getFileReference(outputFolder)
 
@@ -89,6 +92,5 @@ for (i in 1:nrow(ref)) {
 }
 allEstimates <- do.call(rbind, allEstimates)
 saveRDS(allEstimates,  "RealWorldExample/estimatesMatched.rds")
-
 
 ParallelLogger::stopCluster(cluster)
