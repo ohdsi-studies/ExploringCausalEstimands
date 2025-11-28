@@ -26,7 +26,8 @@ computeWeights <- function(data) {
       results[[i]] <- tibble(
         timePoint = timePoint,
         rr = 1,
-        rd = 0
+        rd = 0,
+        chr = 1
       )
     }
     results <- bind_rows(results)
