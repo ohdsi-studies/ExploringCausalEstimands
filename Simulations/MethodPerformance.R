@@ -113,13 +113,10 @@ library(dplyr)
 
 allEstimates <- readRDS("Simulations/allEstimates.rds")
 
-allEstimates |>
-  filter(estimand == "Cumulative Hazard Ratio")
-allEstimates |>
-  filter(estimand == "Risk Ratio")
-
-
 errorStats <- allEstimates |>
+  filter((ciMethod == "percentile" | model == "Cox" | model == "AFT")) |>
+  mutate(model = if_else(estimand == "Cumulative Hazard Ratio", "Cumulative Hazard (KM)", model)) |>
+  mutate(model = if_else(model == "Kaplan Meier", "Risk (KM)", model)) |>
   mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
   mutate(error = if_else(trueEffectType == "null",
                          lb > h0 | ub < h0,
@@ -135,19 +132,9 @@ errorStats <- allEstimates |>
   summarise(error = mean(error, na.rm = TRUE), .groups = "drop") |>
   mutate(errorType = if_else(trueEffectType == "null", "type 1", "type 2"))
 
-
-
-# vizData <- errorStats |>
-#   filter(ciMethod == "asymptotic", depletionOfSusceptibles != "effect") |>
-#   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
-#          Model = model,
-#          trueEffectType = paste("True effect:", SqlRender::camelCaseToTitleCase(trueEffectType)),
-#          depletionOfSusceptibles = if_else(depletionOfSusceptibles == "outcome", "Depletion of susceptibles", "No depletion of susceptibles"),
-#          sampleSize = if_else(sampleSize == "big", "2,500 patients", "1,250 patients"))
 vizData <- errorStats |>
-  filter(ciMethod == "asymptotic") |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
-         Model = if_else(estimand == "Cumulative Hazard Ratio", "Cumulative Hazard", model),
+         Model = model,
          trueEffectType = paste("True effect:", SqlRender::camelCaseToTitleCase(trueEffectType), sep = "\n"),
          depletionOfSusceptibles = case_when(depletionOfSusceptibles == "outcome" ~ "Depletion of outcome susceptibles", 
                                              depletionOfSusceptibles == "effect" ~ "Depletion of effect susceptibles", 
@@ -158,21 +145,26 @@ optimal <- tibble(
   y = c(0.05, 0, 0)
 )
 
+library(wesanderson)
 ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) +
   geom_hline(aes(yintercept = y), data = optimal) +
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.65) +
   scale_y_continuous("Error (type 1 or 2)") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
-  #scale_color_manual(values = myPalette) +
-  facet_nested(depletionOfSusceptibles + sampleSize ~ trueEffectType, scales = "free_y") +
+  scale_color_manual(values = wes_palette("Darjeeling1", 5, type = "discrete")) +
+  # facet_nested(depletionOfSusceptibles + sampleSize ~ trueEffectType, scales = "free_y") +
+  facet_nested(trueEffectType ~ depletionOfSusceptibles + sampleSize) +
   theme(
     axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(linewidth = 0.5, color = "white"),
-    legend.position = "right"
+    legend.position = "top"
   )
-ggsave("Simulations/Type1And2Error.png", width = 7, height = 7, dpi = 300)
-ggsave("Simulations/Type1And2Error.svg", width = 7, height = 7, dpi = 300)
+ggsave("Simulations/Type1And2Error.png", width = 8, height = 4.5, dpi = 300)
+ggsave("Simulations/Type1And2Error.svg", width = 8, height = 4.5)
+
+# ggsave("Simulations/Type1And2Error.png", width = 7, height = 7, dpi = 300)
+# ggsave("Simulations/Type1And2Error.svg", width = 7, height = 7, dpi = 300)
 
 e90 <- allEstimates |>
   filter(trueEffectType == "multiplicative",
