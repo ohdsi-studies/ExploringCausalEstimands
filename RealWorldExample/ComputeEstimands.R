@@ -84,7 +84,7 @@ for (i in 1:nrow(ref)) {
                nOutcomes = sum(population$y))
       saveRDS(estimates, fileName)
     }
-    allEstimates[[i]] <- estimates
+    allEstimates[[length(allEstimates) + 1]] <- estimates
   }
 }
 allEstimates <- do.call(rbind, allEstimates)
