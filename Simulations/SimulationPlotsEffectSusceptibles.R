@@ -11,11 +11,12 @@ settings <- createSimulationSettings()
 
 # Plots of the generative process -------------------------------
 x <- 0:100
-vizData <- tibble(
+vizData1 <- tibble(
   x = x,
-  y = settings$baselineHazardFunction(x)
+  y = settings$baselineHazardFunction(x),
+  type = "Baseline hazard"
 )
-ggplot(vizData, aes(x = x, y = y)) +
+ggplot(vizData1, aes(x = x, y = y)) +
   geom_line(color = "black", linewidth = 1) +
   geom_hline(yintercept = 0, color = "darkgray") +
   scale_x_continuous("Time (days)") +
@@ -26,15 +27,18 @@ ggplot(vizData, aes(x = x, y = y)) +
     legend.position = "bottom"
   )
 ggsave(filename = "Simulations/BaselineHazard.png", width = 5, height = 3.5, dpi = 300)
+ggsave(filename = "Simulations/BaselineHazard.svg", width = 5, height = 3.5, dpi = 300)
 
-vizData <- bind_rows(
+hrFunction <- function(t) {exp(5 * dweibull(t, 1.5, 10))}
+vizData2 <- bind_rows(
   tibble(
     x = x,
-    y = settings$logHrFunction(x),
+    y = hrFunction(x),
+    type = "Hazard ratio\n(Multiplicative effect)",
     label = "Within susceptibles"
   )
 )
-ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
+ggplot(vizData2, aes(x = x, y = y, color = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
@@ -48,15 +52,16 @@ ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
 ggsave(filename = "Simulations/HazardRatio.png", width = 7, height = 3.5, dpi = 300)
 
 
-rdFunction <- function(t) {dweibull(t, 1, 10)}
-vizData <- bind_rows(
+rdFunction <- function(t) {0.2 * dweibull(t, 1, 10)}
+vizData3 <- bind_rows(
   tibble(
     x = x,
     y = rdFunction(x),
+    type = "Risk difference\n(Additive effect)",
     label = "Within susceptibles"
   )
 )
-ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
+ggplot(vizData3, aes(x = x, y = y, color = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_line(linewidth = 1, alpha = 0.7) +
   scale_x_continuous("Time (days)") +
@@ -68,6 +73,34 @@ ggplot(vizData, aes(x = x, y = y, color = label, group = label)) +
     legend.position = "right"
   )
 ggsave(filename = "Simulations/RiskDifference.png", width = 7, height = 3.5, dpi = 300)
+
+# Combined
+vizData <- bind_rows(vizData1, vizData2, vizData3)
+reference <- tibble(
+  y = c(0, 1, 0),
+  type = c("Baseline hazard", 
+           "Hazard ratio\n(Multiplicative effect)",
+           "Risk difference\n(Additive effect)")
+)
+vizData$type <- factor(vizData$type, levels = c("Baseline hazard", 
+                                                "Hazard ratio\n(Multiplicative effect)",
+                                                "Risk difference\n(Additive effect)"))
+reference$type <- factor(reference$type, levels = c("Baseline hazard", 
+                                                "Hazard ratio\n(Multiplicative effect)",
+                                                "Risk difference\n(Additive effect)"))
+ggplot(vizData, aes(x = x, y = y)) +
+  geom_hline(aes(yintercept = y), color = "darkgray", data = reference) +
+  geom_line(linewidth = 1, alpha = 0.7) +
+  scale_x_continuous("Time (days)") +
+  facet_grid(type ~ ., scales = "free_y", switch = "y") +
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_blank(),
+    strip.placement = "outside",
+    strip.background = element_blank()
+  )
+ggsave(filename = "Simulations/GenerativeFunctions.png", width = 4, height = 4, dpi = 300)
+ggsave(filename = "Simulations/GenerativeFunctions.svg", width = 4, height = 4)
 
 
 # Simulation ---------------------------------------------------------

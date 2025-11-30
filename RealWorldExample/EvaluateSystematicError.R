@@ -8,15 +8,22 @@ mdrr <- readRDS("RealWorldExample/mdrr.rds")
 estimatesMatched <- readRDS("RealWorldExample/estimatesMatched.rds")
 negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
 
-
 # Restrict to TCOs having sufficient power -------------------------------------
+mdrr |>
+  group_by(targetId) |>
+  summarise(outcomeCount = n(),
+            validCount = sum(mdrr < mdrrTheshold))
+
 valid <- mdrr |>
   filter(mdrr < mdrrTheshold) |>
   select("targetId", "comparatorId", "outcomeId")
 
 estimates <- estimatesMatched |>
   inner_join(valid, by = join_by("targetId", "comparatorId", "outcomeId")) |>
-  mutate(adjustment = "PS matching")
+  mutate(adjustment = "PS matching") |>
+  filter((ciMethod == "percentile" | model == "Cox" | model == "AFT")) |>
+  mutate(model = if_else(estimand == "Cumulative Hazard Ratio", "Cumulative Hazard (KM)", model)) |>
+  mutate(model = if_else(model == "Kaplan Meier", "Risk (KM)", model))
 
 # Plot type 1 error --------------------------------------------------------------------------------
 computeType1Error <- function(lb, ub, h0 = 1) {
@@ -27,7 +34,7 @@ computeType1Error <- function(lb, ub, h0 = 1) {
 type1Error <- estimates |>
   mutate(h0 = if_else(contrast == "ratio", 1, 0)) |>
   filter(outcomeId %in% negativeControls$conceptId) |>
-  group_by(targetId, comparatorId, timePoint, estimand, model, contrast, ciMethod, adjustment) |>
+  group_by(targetId, comparatorId, timePoint, estimand, model, contrast, sampleSize) |>
   summarise(
     count = n(),
     type1Error = computeType1Error(lb, ub, h0),
@@ -35,30 +42,31 @@ type1Error <- estimates |>
   )
 
 vizData <- type1Error |>
-  filter(ciMethod == "asymptotic") |>
+  # filter(ciMethod == "asymptotic") |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
          Model = model,
+         sampleSize = sprintf("N=%s", format(sampleSize, big.mark = ",")),
          example = if_else(targetId == 739138, 
                            "Sertraline vs bupropion for suicide attempt or ideation", 
                            "Lisinopril vs hydrochlorothiazide for angioedema"))
 
 myPalette = brewer.pal(4, "Dark2")
-plot1 <- ggplot(vizData, aes(x = timePoint, y = type1Error, group = estimand, color = Model)) +
+ggplot(vizData, aes(x = timePoint, y = type1Error, group = estimand, color = Model)) +
   geom_hline(yintercept = 0.05) +
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.75) +
   scale_y_continuous("Type 1 error") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
   scale_color_manual(values = myPalette) +
-  facet_grid(~example) +
+  facet_grid(sampleSize~example) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(linewidth = 0.5, color = "white"),
     legend.position = "top",
-    axis.text.x = element_blank(),
-    axis.title.x = element_blank(),
-    axis.ticks.x = element_blank()
+    # axis.text.x = element_blank(),
+    # axis.title.x = element_blank(),
+    # axis.ticks.x = element_blank()
   )
-# ggsave("RealWorldExample/Type1Error.png", width = 7, height = 3, dpi = 300)
+ggsave("RealWorldExample/Type1Error.png", width = 7, height = 5, dpi = 300)
 # ggsave("RealWorldExample/Type1Error.svg", width = 7, height = 3, dpi = 300)
 
 # Plot positive control p-value --------------------------------------------------------------------
@@ -74,44 +82,52 @@ computeLogP <- function(estimate, lb, ub, contrast, model) {
   return(logP)
 }
 
+estimate <- estimates |>
+  filter(targetId == 739138, outcomeId == 1, sampleSize == 50000, model == "AFT")
+
 vizData <- estimates |>
-  filter(ciMethod == "asymptotic", (targetId == 739138 & outcomeId == 1) | (targetId != 739138 & outcomeId == 2)) |>
+  filter((targetId == 739138 & outcomeId == 1) | (targetId != 739138 & outcomeId == 2)) |>
   mutate(logP = computeLogP(estimate, lb, ub, contrast, model)) |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
          Model = model,
+         sampleSize = sprintf("N=%s", format(sampleSize, big.mark = ",")),
          logP = pmax(if_else(is.na(logP), 0, logP), -200),
          example = if_else(targetId == 739138, "Sertraline vs bupropion for suicide attempt or ideation", "Lisinopril vs hydrochlorothiazide for angioedema"))
 
-# Remove AFT from negative controls because it looks awful:
-vizDataNcs <- estimates |>
-  filter(ciMethod == "asymptotic", outcomeId > 10, model != "AFT") |>
-  mutate(logP = computeLogP(estimate, lb, ub, contrast, model)) |>
-  mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
-         Model = model,
-         logP = pmax(if_else(is.na(logP), 0, logP), -200),
-         example = if_else(targetId == 739138, "Sertraline vs bupropion for suicide attempt or ideation", "Lisinopril vs hydrochlorothiazide for angioedema"))
+# # Remove AFT from negative controls because it looks awful:
+# vizDataNcs <- estimates |>
+#   filter(outcomeId > 10, model != "AFT") |>
+#   mutate(logP = computeLogP(estimate, lb, ub, contrast, model)) |>
+#   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
+#          Model = model,
+#          sampleSize = sprintf("N=%s", format(sampleSize, big.mark = ",")),
+#          logP = pmax(if_else(is.na(logP), 0, logP), -200),
+#          example = if_else(targetId == 739138, "Sertraline vs bupropion for suicide attempt or ideation", "Lisinopril vs hydrochlorothiazide for angioedema"))
 
 
 myPalette = brewer.pal(4, "Dark2")
-breaks <- c(0.05, 1e-8, 1e-16, 1e-32, 1e-64)
-labels <- c(0.5, parse(text = "10^-8"), parse(text = "10^-16"), parse(text = "10^-32"), parse(text = "10^-64"))
+# breaks <- c(0.05, 1e-8, 1e-16, 1e-32, 1e-64)
+breaks <- c(0.5, 0.05, 0.01, 0.001)
+labels <- breaks
+# labels <- c(0.5, parse(text = "10^-8"), parse(text = "10^-16"), parse(text = "10^-32"), parse(text = "10^-64"))
 
 plot2 <- ggplot(vizData, aes(x = timePoint, y = logP, group = estimand, color = Model)) +
-  geom_line(aes(group = paste(estimand, outcomeId)), color = "#666666", alpha = 0.1, data = vizDataNcs) +
+  # geom_line(aes(group = paste(estimand, outcomeId)), color = "#666666", alpha = 0.1, data = vizDataNcs) +
   geom_hline(yintercept = log(0.05)) +
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.75) +
   scale_y_continuous("One-sided P-value", breaks = log(breaks), labels = labels) +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
   scale_color_manual(values = myPalette) +
-  coord_cartesian(ylim = c(min(vizData$logP), max(vizData$logP))) +
-  facet_grid(~example) +
+  # coord_cartesian(ylim = c(min(vizData$logP), max(vizData$logP))) +
+  coord_cartesian(ylim = c(log(0.0001), log(1))) +
+  facet_grid(sampleSize~example) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(linewidth = 0.5, color = "white"),
-    legend.position = "none",
-    strip.text = element_blank()
+    # legend.position = "none",
+    # strip.text = element_blank()
   )
-
+plot2
 
 # ggsave("RealWorldExample/PvalueOutcomeOfInterest.png", width = 7, height = 3, dpi = 300)
 
