@@ -1,6 +1,7 @@
 source("RealWorldExample/SetConnectionDetails.R")
 library(CohortMethod)
 library(survival)
+library(dplyr)
 
 # specify analyses -------------------------------------------------------------
 
@@ -89,7 +90,27 @@ result <- runCmAnalyses(
 )
 
 # Get MDRR ---------------------------------------------------------------------
-library(dplyr)
 mdrr <- getResultsSummary(outputFolder) |>
   select(targetId, comparatorId, outcomeId, mdrr)
 saveRDS(mdrr, "RealWorldExample/mdrr.rds")
+
+# Compute counts ---------------------------------------------------------------
+ref <- getFileReference(outputFolder)
+refRows <- ref |>
+  filter(outcomeId %in% c(1, 2))
+for (i in 1:2) {
+  if (refRows$outcomeId[i] == 1) {
+    print("Suicide and suicidal ideation")
+  } else {
+    print("Angioedema")
+  }
+  strataPop <- readRDS(file.path(outputFolder, refRows$strataFile[i]))
+  attrition <- getAttritionTable(strataPop)
+  print(attrition[2, ])
+  print(attrition[5, ])
+  print(sum(strataPop$outcomeCount > 0))
+  print(mean(strataPop$outcomeCount > 0) * 100)
+  
+  balance <- readRDS(file.path(outputFolder, refRows$sharedBalanceFile[i]))
+  writeLines(sprintf("Number of covariates: %d, max ASDM: %0.2f", nrow(balance), max(abs(balance$afterMatchingStdDiff), na.rm = TRUE)))
+}
