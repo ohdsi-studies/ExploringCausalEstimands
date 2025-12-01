@@ -1,3 +1,6 @@
+# Computes the various estimands based on the intermediary files created by CohortMethod. Assumes
+# RunCohortMethod.R has been executed.
+
 source("RealWorldExample/SetConnectionDetails.R")
 source("Common/FunctionsForEstimands.R")
 library(CohortMethod)

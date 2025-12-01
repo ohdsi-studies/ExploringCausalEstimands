@@ -1,10 +1,11 @@
+# Script for running the CohortMethod package. Assumes CreateCohorts.R has been executed.
+
 source("RealWorldExample/SetConnectionDetails.R")
 library(CohortMethod)
 library(survival)
 library(dplyr)
 
-# specify analyses -------------------------------------------------------------
-
+# Specify analyses -------------------------------------------------------------
 tcos <- readr::read_csv("RealWorldExample/TCOs.csv", show_col_types = FALSE)
 negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
 
@@ -88,11 +89,6 @@ result <- runCmAnalyses(
   targetComparatorOutcomesList = targetComparatorOutcomesList,
   multiThreadingSettings = multiThreadingSettings
 )
-
-# Get MDRR ---------------------------------------------------------------------
-mdrr <- getResultsSummary(outputFolder) |>
-  select(targetId, comparatorId, outcomeId, mdrr)
-saveRDS(mdrr, "RealWorldExample/mdrr.rds")
 
 # Compute counts ---------------------------------------------------------------
 ref <- getFileReference(outputFolder)

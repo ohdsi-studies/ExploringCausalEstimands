@@ -1,3 +1,6 @@
+# Code for running the simulations and analyzing the simulation results
+
+# Run simulations ----------------------------------------------------------------------------------
 source("Simulations/SimulationFunctions.R")
 source("Common/FunctionsForEstimands.R")
 
@@ -108,8 +111,8 @@ saveRDS(allEstimates, "Simulations/allEstimates.rds")
 # Plot type 1 and 2 error ------------------------------------------------------
 library(ggplot2)
 library(ggh4x)
-library(RColorBrewer)
 library(dplyr)
+library(wesanderson)
 
 allEstimates <- readRDS("Simulations/allEstimates.rds")
 
@@ -145,7 +148,6 @@ optimal <- tibble(
   y = c(0.05, 0, 0)
 )
 
-library(wesanderson)
 ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) +
   geom_hline(aes(yintercept = y), data = optimal) +
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.65) +
@@ -160,79 +162,21 @@ ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) 
     panel.grid.major = element_line(linewidth = 0.5, color = "white"),
     legend.position = "top"
   )
-ggsave("Simulations/Type1And2Error.png", width = 8, height = 4.5, dpi = 300)
-ggsave("Simulations/Type1And2Error.svg", width = 8, height = 4.5)
+ggsave("Simulations/plots/Type1And2Error.png", width = 8, height = 4.5, dpi = 300)
+ggsave("Simulations/plots/Type1And2Error.svg", width = 8, height = 4.5)
 
-# ggsave("Simulations/Type1And2Error.png", width = 7, height = 7, dpi = 300)
-# ggsave("Simulations/Type1And2Error.svg", width = 7, height = 7, dpi = 300)
-
-e90 <- allEstimates |>
+# Explore why KM performs worse for longer time cutoffs --------------------------------------------
+library(ggplot2)
+library(dplyr)
+allEstimates <- readRDS("Simulations/allEstimates.rds")
+vizData <- allEstimates |>
   filter(trueEffectType == "multiplicative",
          depletionOfSusceptibles == "none",
          sampleSize == "big",
-         ciMethod == "asymptotic",
-         timePoint == 90,
-         model == "Kaplan Meier",
-         contrast == "difference")
-
-e30 <- allEstimates |>
-  filter(trueEffectType == "multiplicative",
-         depletionOfSusceptibles == "none",
-         sampleSize == "big",
-         ciMethod == "asymptotic",
-         timePoint == 30,
-         model == "Kaplan Meier",
-         contrast == "difference")
-e90
-e30
-
-merged <- inner_join(
-  e30 |>
-    select(seed, estimate30 = estimate, lb30 = lb, ub30 = ub, se30 = se),
-  e90 |>
-    select(seed, estimate90 = estimate, lb90 = lb, ub90 = ub, se90 = se),
-  by = join_by(seed)
-)
-ggplot(merged, aes(x = se30, y = se90)) +
-  geom_abline(slope = 1) +
-  geom_point(alpha = 0.4)
-
-ggplot(merged, aes(x = estimate30, y = estimate90)) +
-  geom_abline(slope = 1) +
-  geom_point(alpha = 0.4)
-
-
-e <- allEstimates |>
-  filter(trueEffectType == "multiplicative",
-         depletionOfSusceptibles == "none",
-         sampleSize == "big",
-         ciMethod == "asymptotic",
-         model %in% c("Kaplan Meier", "Cox"))
-
-ggplot(e, aes(x = timePoint, y = se, group = timePoint)) +
-  geom_boxplot() +
-  scale_x_log10() +
-  scale_y_continuous("Standard error") +
-  facet_nested(contrast + model~., scale = "free_y")
-
-ggplot(e, aes(x = timePoint, y = estimate, group = timePoint)) +
-  geom_boxplot() +
-  scale_x_log10() +
-  scale_y_continuous("Point estimate") +
-  facet_nested(contrast + model~., scale = "free_y")
-
-
-e |>
-  filter(contrast == "ratio") |>
-  mutate(newLb = exp(log(estimate) + qnorm(0.025) * se)) |>
-  group_by(model, timePoint) |>
-  summarise(mean(newLb < 1))
-
-vizData <- e |>
+         (ciMethod == "asymptotic" & model == "Cox") | (ciMethod == "percentile" & estimand == "Risk Ratio")) |>
   filter(seed %in% 1:4, contrast == "ratio") |>
   mutate(seed = paste("Seed", seed),
          model = if_else(estimand == "Cumulative Hazard Ratio", "Cumulative Hazard", model))
-
 
 ggplot(vizData, aes(x = timePoint, y = estimate)) +
   geom_hline(yintercept = 1) +
@@ -242,4 +186,4 @@ ggplot(vizData, aes(x = timePoint, y = estimate)) +
   scale_y_continuous("Ratio") +
   coord_cartesian(ylim = c(0.75, 1.75)) +
   facet_grid(seed ~ model)
-ggsave("Simulations/CoxVsKmEstimates.png", width = 6, height = 6)
+ggsave("Simulations/plots/CoxVsKmEstimates.png", width = 6, height = 6)

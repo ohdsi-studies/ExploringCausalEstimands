@@ -1,3 +1,5 @@
+# Script for creating the exposure and outcome cohorts
+
 source("RealWorldExample/SetConnectionDetails.R")
 library(Capr)
 library(dplyr)
