@@ -101,8 +101,13 @@ refRows <- ref |>
 for (i in 1:2) {
   if (refRows$outcomeId[i] == 1) {
     print("Suicide and suicidal ideation")
+    targetLabel <- "Sertraline"
+    comparatorLabel <- "Bupropion"
   } else {
     print("Angioedema")
+    targetLabel <- "Lisinopril"
+    comparatorLabel <- "Hydrochlorothiazide"
+    
   }
   strataPop <- readRDS(file.path(outputFolder, refRows$strataFile[i]))
   attrition <- getAttritionTable(strataPop)
@@ -110,6 +115,20 @@ for (i in 1:2) {
   print(attrition[5, ])
   print(sum(strataPop$outcomeCount > 0))
   print(mean(strataPop$outcomeCount > 0) * 100)
+  
+  plotKaplanMeier(population = strataPop,
+                  targetLabel = targetLabel, 
+                  comparatorLabel = comparatorLabel,
+                  fileName = file.path("RealWorldExample", sprintf("KM_o%d.png", refRows$outcomeId[i])))
+  plotKaplanMeier(population = strataPop,
+                  targetLabel = targetLabel, 
+                  comparatorLabel = comparatorLabel,
+                  fileName = file.path("RealWorldExample", sprintf("KM_o%d.svg", refRows$outcomeId[i])))
+  strataPop <- strataPop |>
+    mutate(y = outcomeCount > 0)
+  fit <- coxph(Surv(survivalTime, y) ~ treatment, data = strataPop)
+  phTest <- cox.zph(fit)
+  print(phTest)
   
   balance <- readRDS(file.path(outputFolder, refRows$sharedBalanceFile[i]))
   writeLines(sprintf("Number of covariates: %d, max ASDM: %0.2f", nrow(balance), max(abs(balance$afterMatchingStdDiff), na.rm = TRUE)))
