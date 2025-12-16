@@ -8,10 +8,10 @@ library(survival)
 library(dplyr)
 
 timePoints <- c(2, 7, 30, 90, 180, 365)
-sampleSizes <- c(100000, 10000, 1000)
+sampleSizes <- c(1e7, 100000, 10000, 1000)
 bootstrapSize <- 200
 
-cluster <- ParallelLogger::makeCluster(maxCores)
+cluster <- ParallelLogger::makeCluster(1)
 ParallelLogger::clusterRequire(cluster, "survival")
 ParallelLogger::clusterRequire(cluster, "dplyr")
 ParallelLogger::clusterRequire(cluster, "adjustedCurves")
@@ -72,9 +72,14 @@ for (i in 1:nrow(ref)) {
       estimates <- readRDS(fileName)
     } else {
       population <- readRDS(file.path(outputFolder, ref$strataFile[i]))
-      sampledStratumIds <- sample(unique(population$stratumId), sampleSize / 2)
-      population <- population |>
-        filter(stratumId %in% sampledStratumIds)
+      if (nrow(population) > sampleSize) {
+        message(sprintf("- Downsampling from %d to %d", nrow(population), sampleSize))
+        sampledStratumIds <- sample(unique(population$stratumId), sampleSize / 2)
+        population <- population |>
+          filter(stratumId %in% sampledStratumIds)
+      } else {
+        message("- No need to sample")
+      }
       population$y <- population$outcomeCount > 0
       estimates <- computeEstimands(
         population = population,
