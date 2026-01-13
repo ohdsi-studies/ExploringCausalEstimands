@@ -39,6 +39,9 @@ simulatePopulation <- function(settings, seed = NULL) {
   survivalTime <- rep(1001, settings$n)
   y <- rep(0, settings$n)
   trueHazardRatioOverTime <- rep(NA, 1000)
+  trueCumulativeHazardRatioOverTime <- rep(NA, 1000)
+  trueCumulativeHazardTarget <- 0
+  trueCumulativeHazardComparator <- 0
   targetOverTime <- rep(NA, 1000)
   comparatorOverTime <- rep(NA, 1000)
   targetEffectSusceptiblesOverTime <- rep(NA, 1000)
@@ -68,7 +71,12 @@ simulatePopulation <- function(settings, seed = NULL) {
     }
     hazards <- if_else(a[atRisk] == 1 & effectSusceptible[atRisk] == 1, exp(logHr) * baselineHazards[atRisk] + rd, baselineHazards[atRisk])
     hazards <- if_else(outcomeSusceptible[atRisk] == 1, hazards, 0)
-    trueHazardRatioOverTime[t] <- mean(hazards[a[atRisk] == 1]) / mean(hazards[a[atRisk] != 1])
+    meanHazardTarget <- mean(hazards[a[atRisk] == 1])
+    meanHazardComparator <- mean(hazards[a[atRisk] != 1])
+    trueHazardRatioOverTime[t] <- meanHazardTarget / meanHazardComparator
+    trueCumulativeHazardTarget <- trueCumulativeHazardTarget + meanHazardTarget
+    trueCumulativeHazardComparator <- trueCumulativeHazardComparator + meanHazardComparator
+    trueCumulativeHazardRatioOverTime[t] <- trueCumulativeHazardTarget / trueCumulativeHazardComparator
     outcome <- runif(nAtRisk) < hazards
     censored <- runif(nAtRisk) < settings$censorHazard
     noLongerAtRisk <- outcome | censored
@@ -85,6 +93,7 @@ simulatePopulation <- function(settings, seed = NULL) {
     outcomeSusceptible = outcomeSusceptible
   )
   attr(population, "trueHazardRatioOverTime") <- trueHazardRatioOverTime
+  attr(population, "trueCumulativeHazardRatioOverTime") <- trueCumulativeHazardRatioOverTime
   attr(population, "targetOverTime") <- targetOverTime
   attr(population, "comparatorOverTime") <- comparatorOverTime
   attr(population, "targetEffectSusceptiblesOverTime") <- targetEffectSusceptiblesOverTime

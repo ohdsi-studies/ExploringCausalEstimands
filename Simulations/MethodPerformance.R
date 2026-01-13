@@ -112,7 +112,8 @@ saveRDS(allEstimates, "Simulations/allEstimates.rds")
 library(ggplot2)
 library(ggh4x)
 library(dplyr)
-library(wesanderson)
+# library(wesanderson)
+library(RColorBrewer)
 
 allEstimates <- readRDS("Simulations/allEstimates.rds")
 
@@ -153,7 +154,8 @@ ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) 
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.65) +
   scale_y_continuous("Error (type 1 or 2)") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
-  scale_color_manual(values = wes_palette("Darjeeling1", 5, type = "discrete")) +
+  # scale_color_manual(values = wes_palette("Darjeeling1", 5, type = "discrete")) +
+  scale_color_manual(values = brewer.pal(5, "Set1")) +
   # facet_nested(depletionOfSusceptibles + sampleSize ~ trueEffectType, scales = "free_y") +
   facet_nested(trueEffectType ~ depletionOfSusceptibles + sampleSize) +
   theme(

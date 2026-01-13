@@ -3,7 +3,8 @@
 library(dplyr)
 library(ggplot2)
 library(patchwork)
-library(wesanderson)
+# library(wesanderson)
+library(RColorBrewer)
 
 estimatesMatched <- readRDS("RealWorldExample/estimatesMatched.rds")
 negativeControls <- readr::read_csv("RealWorldExample/NegativeControls.csv", show_col_types = FALSE)
@@ -32,20 +33,24 @@ type1Error <- estimates |>
 vizData <- type1Error |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
          Model = model,
-         sampleSize = sprintf("N=%s", format(sampleSize, big.mark = ",", scientific = FALSE)),
+         sampleSize = if_else(sampleSize == 1e7, 
+                              "All patients",
+                              sprintf("N=%s", format(sampleSize, big.mark = ",", scientific = FALSE, trim = TRUE))),
          example = if_else(targetId == 739138, 
-                           "Sertraline vs bupropion for suicide attempt or ideation", 
-                           "Lisinopril vs hydrochlorothiazide for angioedema"))
+                           "Sertraline vs\nbupropion", 
+                           "Lisinopril vs\nhydrochlorothiazide"))
 
+vizData$sampleSize <- factor(vizData$sampleSize, levels = c("N=1,000", "N=10,000", "N=100,000", "All patients"))
 
-myPalette <- wes_palette("Darjeeling1", 5, type = "discrete")
 plot1 <- ggplot(vizData, aes(x = timePoint, y = type1Error, group = estimand, color = Model)) +
   geom_hline(yintercept = 0.05) +
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.75) +
   scale_y_continuous("Type 1 error") +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
-  scale_color_manual(values = myPalette) +
-  facet_grid(sampleSize~example) +
+  # scale_color_manual(values = wes_palette("Darjeeling1", 5, type = "discrete")) +
+  scale_color_manual(values = brewer.pal(5, "Set1")) +
+  # facet_grid(sampleSize~example) +
+  facet_grid(example~sampleSize) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(linewidth = 0.5, color = "white"),
@@ -78,11 +83,15 @@ vizData <- estimates |>
   mutate(logP = computeLogP(estimate, lb, ub, contrast, model)) |>
   mutate(Contrast = SqlRender::camelCaseToTitleCase(contrast),
          Model = model,
-         sampleSize = sprintf("N=%s", format(sampleSize, big.mark = ",", scientific = FALSE)),
+         sampleSize = if_else(sampleSize == 1e7, 
+                              "All patients",
+                              sprintf("N=%s", format(sampleSize, big.mark = ",", scientific = FALSE, trim = TRUE))),
          logP = pmax(if_else(is.na(logP), 0, logP), -200),
-         example = if_else(targetId == 739138, "Sertraline vs bupropion for suicide attempt or ideation", "Lisinopril vs hydrochlorothiazide for angioedema"))
+         example = if_else(targetId == 739138, "Sertraline vs\nbupropion", 
+                           "Lisinopril vs\nhydrochlorothiazide"))
 
-myPalette <- wes_palette("Darjeeling1", 5, type = "discrete")
+vizData$sampleSize <- factor(vizData$sampleSize, levels = c("N=1,000", "N=10,000", "N=100,000", "All patients"))
+
 breaks <- c(0.5, 0.05, 0.01, 0.001)
 labels <- breaks
 
@@ -92,10 +101,12 @@ plot2 <- ggplot(vizData, aes(x = timePoint, y = logP, group = estimand, color = 
   geom_line(aes(linetype = Contrast), linewidth = 0.75, alpha = 0.75) +
   scale_y_continuous("One-sided P-value", breaks = log(breaks), labels = labels) +
   scale_x_log10("Cutoff time (days)", breaks = unique(vizData$timePoint)) +
-  scale_color_manual(values = myPalette) +
+  # scale_color_manual(values = wes_palette("Darjeeling1", 5, type = "discrete")) +
+  scale_color_manual(values = brewer.pal(5, "Set1")) +
   # coord_cartesian(ylim = c(min(vizData$logP), max(vizData$logP))) +
   coord_cartesian(ylim = c(log(0.0001), log(1))) +
-  facet_grid(sampleSize~example) +
+  # facet_grid(sampleSize~example) +
+  facet_grid(example~sampleSize) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(linewidth = 0.5, color = "white"),
@@ -107,5 +118,5 @@ plot2
 
 # Combine plots ------------------------------------------------------------------------------------
 plot1 / plot2
-ggsave("RealWorldExample/plots/ErrorAndP.png", width = 8, height = 8, dpi = 300)
-ggsave("RealWorldExample/plots/ErrorAndP.svg", width = 8, height = 8)
+ggsave("RealWorldExample/plots/ErrorAndP.png", width = 8, height = 6.5, dpi = 300)
+ggsave("RealWorldExample/plots/ErrorAndP.svg", width = 8, height = 6.5)

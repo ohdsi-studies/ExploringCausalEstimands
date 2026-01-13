@@ -42,121 +42,6 @@ for (t in 1:90) {
 }
 
 # Plots of estimates -------------------------------------------------------------------------------
-
-# # Depletion of susceptibles
-# targetOutcomeSusceptiblesOverTime <- attr(population, "targetOutcomeSusceptiblesOverTime")
-# comparatorOutcomeSusceptiblesOverTime <- attr(population, "comparatorOutcomeSusceptiblesOverTime")
-# targetOverTime <- attr(population, "targetOverTime")
-# comparatorOverTime <- attr(population, "comparatorOverTime")
-# vizData <- bind_rows(
-#   tibble(
-#     x = x,
-#     y = c(settings$pOutcomeSusceptible, targetOutcomeSusceptiblesOverTime[1:100] / targetOverTime[1:100]),
-#     label = "Target"
-#   ),
-#   tibble(
-#     x = x,
-#     y = c(settings$pOutcomeSusceptible, comparatorOutcomeSusceptiblesOverTime[1:100] / comparatorOverTime[1:100]),
-#     label = "Comparator"
-#   )
-# )
-# ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
-#   geom_hline(yintercept = 0, color = "darkgray") +
-#   geom_line(linewidth = 1, color = "black", alpha = 0.7) +
-#   scale_x_continuous("Time (days)") +
-#   scale_y_continuous("Fraction susceptible") +
-#   theme(
-#     panel.grid.minor = element_blank(),
-#     legend.title = element_blank(),
-#     legend.position = "bottom"
-#   )
-# ggsave(filename = "Simulations/FractionOutcomeSusceptible.png", width = 5, height = 3.5, dpi = 300)
-
-# True effect given depletion of susceptibles
-# trueHazardRatioOverTime <- attr(population, "trueHazardRatioOverTime")
-# 
-# vizData <- bind_rows(
-#   tibble(
-#     x = x,
-#     y = settings$logHrFunction(x),
-#     label = "Within susceptibles"
-#   ),
-#   tibble(
-#     x = x,
-#     y = c(settings$logHrFunction(0), log(trueHazardRatioOverTime[1:100])),
-#     label = "Average over population at risk"
-#   ),
-#   tibble(
-#     x = x,
-#     y = settings$logHrFunction(x),
-#     label = "Average without depletion"
-#   ),
-#   tibble(
-#     x = x,
-#     y = c(0, log(ratio)),
-#     label = "Observed outcomes / counterfactual"
-#   )
-# )
-# vizData$label <- factor(vizData$label, levels = c("Within susceptibles", 
-#                                                   "Average without depletion", 
-#                                                   "Average over population at risk",
-#                                                   "Observed outcomes / counterfactual"))
-# ggplot(vizData, aes(x = x, y = y, linetype = label, group = label)) +
-#   geom_hline(yintercept = 0, color = "darkgray") +
-#   geom_line(linewidth = 1, alpha = 0.7) +
-#   scale_x_continuous("Time (days)") +
-#   scale_y_continuous("Hazard Ratio", 
-#                      breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
-#                      labels = c(1, 2, 3, 4, 5, 6, 7),
-#                      sec.axis = sec_axis(transform = ~., 
-#                                          breaks = log(c(1, 2, 3, 4, 5, 6, 7)), 
-#                                          labels = c(1, 2, 3, 4, 5, 6, 7),
-#                                          name = "Risk ratio")) +
-#   scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotdash", "solid", "solid", "solid", "solid")) +
-#   coord_cartesian(xlim = c(0, 100), ylim = c(log(0.75), log(7))) +
-#   theme(
-#     panel.grid.minor = element_blank(),
-#     legend.title = element_blank(),
-#     legend.position = "right"
-#   )
-# ggsave(filename = "Simulations/HazardRatioWithOutcomeSusceptibles.png", width = 7, height = 3.5, dpi = 300)
-# 
-# # KM curves
-# km <- survfit(Surv(survivalTime, y) ~ a, data = population)
-# kms <- summary(km)
-# targetIdx <- kms$strata == "a=1"
-# timeIdx <- kms$time <= 100
-# vizData <- bind_rows(
-#   tibble(
-#     x = kms$time[targetIdx & timeIdx],
-#     y = kms$surv[targetIdx & timeIdx],
-#     ymin = kms$lower[targetIdx & timeIdx],
-#     ymax = kms$upper[targetIdx & timeIdx],
-#     label = "Target"
-#   ),
-#   tibble(
-#     x = kms$time[!targetIdx & timeIdx],
-#     y = kms$surv[!targetIdx & timeIdx],
-#     ymin = kms$lower[!targetIdx & timeIdx],
-#     ymax = kms$upper[!targetIdx & timeIdx],
-#     label = "Comparator"
-#   )
-# )
-# 
-# ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
-#   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.35,  size = 0) +
-#   geom_line(linewidth = 1, alpha = 0.7) +
-#   scale_x_continuous("Time (days)") +
-#   scale_y_continuous("Survival probability") +
-#   scale_color_manual(values = c("#336B91", "#EB6622")) +
-#   scale_fill_manual(values = c("#336B91", "#EB6622")) +
-#   theme(
-#     panel.grid.minor = element_blank(),
-#     legend.title = element_blank(),
-#     legend.position = "bottom"
-#   )
-# ggsave(filename = "Simulations/KaplanMeierOutcomeSusceptibles.png", width = 5, height = 3.5, dpi = 300)
-
 # Risk ratio over time
 source("Common/FunctionsForEstimands.R")
 x <- 0:90
@@ -166,9 +51,8 @@ cluster <- ParallelLogger::makeCluster(10)
 estimates <- computeEstimands(population, timePoints = timePoints, bootstrapSize = 200, cluster = cluster)
 ParallelLogger::stopCluster(cluster)
 
-
 vizData <- estimates |>
-  filter((ciMethod == "percentile" | model == "Cox"),
+  filter((ciMethod == "percentile" | model == "Cox" | model == "AFT"),
          contrast == "ratio") |>
   mutate(model = if_else(estimand == "Cumulative Hazard Ratio", "Cumulative Hazard (KM)", model)) |>
   mutate(model = if_else(model == "Kaplan Meier", "Risk (KM)", model)) |>
@@ -181,45 +65,55 @@ vizData <- estimates |>
          ymin = if_else(label == "AFT", -ymin, ymin),
          ymax = if_else(label == "AFT", -ymax, ymax))
 
-
+t <- seq_len(90)
+cumulativePatientLevelHr <- cumsum(exp(settings$logHrFunction(t))) / t
 
 vizData <- bind_rows(
+  # tibble(
+  #   x = x,
+  #   y = settings$logHrFunction(x),
+  #   label = "Patient-level instantaneous effect"
+  # ),
   tibble(
     x = x,
-    y = settings$logHrFunction(x),
-    label = "Patient-level generative effect"
+    y = c(settings$logHrFunction(0), log(cumulativePatientLevelHr)),
+    label = "Cumulative generative effect"
   ),
   tibble(
     x = x,
     y = c(settings$logHrFunction(0), log(attr(population, "trueHazardRatioOverTime")[x[-1]])),
-    label = "Population-level effect"
+    label = "Instantaneous effect\nin at-risk population"
   ),
-  # tibble(
-  #   x = x,
-  #   y = settings$logHrFunction(x) * settings$pOutcomeSusceptible,
-  #   label = "Average without depletion"
-  # ),
+  tibble(
+    x = x,
+    y = c(settings$logHrFunction(0), log(attr(population, "trueCumulativeHazardRatioOverTime")[x[-1]])),
+    label = "Cumulative effect\nin at-risk population"
+  ),
   tibble(
     x = x,
     y = c(0, log(ratio)),
-    label = "Observed outcomes / counterfactual"
+    label = "Observed outcomes /\nsimulated counterfactual"
   ),
   vizData
 )
-vizData$label <- factor(vizData$label, levels = c("Patient-level generative effect", 
-                                                  "Population-level effect",
-                                                  "Observed outcomes / counterfactual",
-                                                  "AFT",
-                                                  "Cox",
-                                                  "Risk (KM)",
-                                                  "Cumulative Hazard (KM)",
-                                                  "RMST"))
+vizData$label <- factor(vizData$label, levels = c(
+  #"Patient-level instantaneous generative effect", 
+  "Cumulative generative effect",
+  "Instantaneous effect\nin at-risk population",
+  "Cumulative effect\nin at-risk population",
+  "Observed outcomes /\nsimulated counterfactual",
+  "AFT",
+  "Cox",
+  "Risk (KM)",
+  "Cumulative Hazard (KM)",
+  "RMST"))
 
-library(wesanderson)
-colors <- c("#000000", "#000000", "#000000", wes_palette("Darjeeling1", 5, type = "discrete"))
-#colors <- c("#000000", "#000000", "#000000", "#000000", "#69AED5", "#EB6622", "#11A08A", "#FBC511", "#336B91")
-# colors <- c("#000000", "#000000", "#000000", "#000000", brewer.pal(5, "Dark2"))
-# colors <- c("#000000", "#000000", "#000000", "#000000", scales::hue_pal()(5))
+# library(wesanderson)
+# colors <- c("#000000", "#000000", "#000000", "#a559aa", "#59a89c", "#f0c571", "#e02b35", "#082a54")
+# colors <- c("#000000", "#000000", "#000000", wes_palette("Darjeeling1", 5, type = "discrete"))
+# colors <- c("#000000", "#000000", "#000000", "#69AED5", "#EB6622", "#11A08A", "#FBC511", "#336B91")
+colors <- c("#000000", "#000000", "#000000", "#000000", brewer.pal(5, "Set1"))
+# colors <- c("#000000", "#000000", "#000000", scales::hue_pal()(5))
 ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
   geom_hline(yintercept = 0, color = "darkgray") +
   geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.1, size = 0) +
@@ -234,16 +128,17 @@ ggplot(vizData, aes(x = x, y = y, color = label, fill = label, group = label)) +
                                          name = "Risk ratio")) +
   scale_color_manual(values = colors) +
   scale_fill_manual(values = colors) +
-  scale_linetype_manual(values = c("solid", "dashed", "dotted", "solid", "solid", "solid", "solid", "solid")) +
+  scale_linetype_manual(values = c("solid", "dotdash", "dotted", "dashed", "solid", "solid", "solid", "solid", "solid")) +
   coord_cartesian(xlim = c(0, 90), ylim = c(log(0.75), log(6))) +
   theme(
     panel.grid.minor = element_blank(),
     legend.title = element_blank(),
-    legend.position = "right"
+    legend.position = "right",
+    legend.key.size = unit(2,"line")
   )
 
-ggsave(filename = "Simulations/HrsAndRrsOutcomeSusceptibles.png", width = 7, height = 4, dpi = 300)
-ggsave(filename = "Simulations/HrsAndRrsOutcomeSusceptibles.svg", width = 7, height = 4)
+ggsave(filename = "Simulations/plots/HrsAndRrsOutcomeSusceptibles.png", width = 7, height = 4, dpi = 300)
+ggsave(filename = "Simulations/plots/HrsAndRrsOutcomeSusceptibles.svg", width = 7, height = 4)
 
 subset <- vizData |>
   filter(label %in% c("Within susceptibles", 
