@@ -166,6 +166,7 @@ ggplot(vizData, aes(x = timePoint, y = error, group = estimand, color = Model)) 
   )
 ggsave("Simulations/plots/Type1And2Error.png", width = 8, height = 4.5, dpi = 300)
 ggsave("Simulations/plots/Type1And2Error.svg", width = 8, height = 4.5)
+ggsave("Simulations/plots/Type1And2Error.pdf", width = 8, height = 4.5)
 
 # Explore why KM performs worse for longer time cutoffs --------------------------------------------
 library(ggplot2)
