@@ -120,3 +120,4 @@ plot2
 plot1 / plot2
 ggsave("RealWorldExample/plots/ErrorAndP.png", width = 8, height = 6.5, dpi = 300)
 ggsave("RealWorldExample/plots/ErrorAndP.svg", width = 8, height = 6.5)
+ggsave("RealWorldExample/plots/ErrorAndP.pdf", width = 8, height = 6.5)
