@@ -19,11 +19,10 @@ plot(1:300, settings$rdFunction(1:300))
 population <- simulatePopulation(settings)
 
 # Plot KM:
-
 population <- population |>
   mutate(outcomeCount = y,
          treatment = a)
-CohortMethod::plotKaplanMeier(population, dataCutoff = 0.99)
+CohortMethod::plotKaplanMeier(population, dataCutoff = 0.99, fileName = "ExperimentalEstimands/Km.png")
 
 
 timePoints <- c(2, 30, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360)
@@ -52,26 +51,9 @@ ggplot(vizData, aes(x = timePoint, y = estimate)) +
   scale_y_continuous("Time point") +
   scale_y_continuous("Effect estimate") +
   facet_grid(type ~ ., scales = "free_y")
-
-
-
+ggsave("ExperimentalEstimands/ExperimentalEstimands.png")
 
  ParallelLogger::stopCluster(cluster)
-
-
-# sv <- survival::survfit(survival::Surv(survivalTime, y) ~ a, population, conf.int = TRUE)
-# treatment <- if_else(summary(sv, censored = T)$strata == "treatment=1", 1, 0)
-# data <- tibble(
-#   time = sv$time,
-#   nCensor = sv$n.censor,
-#   survival = sv$surv,
-#   treatment = treatment,
-#   upper = sv$upper,
-#   lower = sv$lower
-# )
-
-
-
 
 
 
