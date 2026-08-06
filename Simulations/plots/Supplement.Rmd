@@ -1,0 +1,84 @@
+---
+title: "Supplementary Materials for\nReaffirming the Role of the Hazard Ratio in Causal Inference"
+fontsize: 12pt
+geometry: margin=1in
+output:
+  bookdown::pdf_document2:
+  keep_tex: yes
+latex_engine: xelatex
+md_extensions: +raw_attribute
+number_sections: yes
+# citation_package: natbib
+longtable: yes
+mainfont: Arial
+header-includes:
+- \DeclareUnicodeCharacter{2061}{}
+- \usepackage{float} 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+tempFolder <- "e:/temp/simTemp"
+```
+
+
+
+# Extended simulations
+
+In addition to the simulations described in the main manuscript, additional simulation scenarios were explored. 
+The results are included in this section. 
+
+
+The following additional variants were executed:
+
+**True effect size**: for both the additive and multiplicative true effect sizes we included variants with 10 times large sizes. The *multiplicative (large) effect* uses the following function:
+
+$$log⁡(HR(t))=10\mu_mWeibull(1.5,10)$$
+the *additive (large) effect* uses:
+
+$$RD(t)=10\mu_mWeibull(1,10)$$
+**Incidence**: The background incidence in the original simulations are quite *high*:
+
+$$h_(i,0)(t)=c_iWeibull(1,50)$$
+
+Here we include a variant with *low* incidence:
+
+$$h_(i,0)(t)=0.1c_iWeibull(1,50)$$
+**Frailty heterogeneity**: The orignal simulations used a relatively *low* heterogeneity of frailty, differing at most by a factor of 4:
+
+$$c_i\sim U(0.5,2)$$
+Here we include a variant with *high* heterogeneity:
+
+$$c_i \sim U(0.1,10)$$
+
+# Simulation results (type 1 and 2 error)
+
+## Low frailty heterogeneity
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{Type1And2Errorlow0.pdf}
+\caption{Type 1 and 2 error under different simulation scenarios when using low frailty heterogenneity}
+\end{figure}
+
+## High frailty heterogeneity
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{Type1And2Errorhigh0.pdf}
+\caption{Type 1 and 2 error under different simulation scenarios when using high frailty heterogenneity}
+\end{figure}
+
+# Kaplan-Meier plots for simulations
+
+This section contains one Kaplan Meier plot per simulation settings. 
+Each simulation scenarios was executed multiple times (to compute type 1 and 2 error), and the actual plot in each simulation run may differ from what is depicted here.
+
+
+```{r kmPlots, echo=FALSE, results="asis", warning=FALSE, message=FALSE}
+kmPlots <- readRDS(file.path(tempFolder, "kmPlots.rds"))
+template <- "%label%\n\n![Kaplan Meier curves using simulation parameters: %parameters%](%fileName%)\n\n\\pagebreak"
+for (i in 1:nrow(kmPlots)) {
+  writeLines(gsub("%label%", kmPlots$label[i], gsub("%parameters%",  gsub("#", "", kmPlots$label[i]), gsub("%fileName%", kmPlots$fileName[i], template))))
+}
+```

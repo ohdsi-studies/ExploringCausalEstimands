@@ -455,7 +455,7 @@ computeEstimands <- function(population,
   
   # RMST
   mainMrstEstimates <- .calculateRmst(NA, population, timePoints)
-  message("MSTS bootstrap")
+  message("MRST bootstrap")
   mrstBootStrap <- ParallelLogger::clusterApply(cluster, 
                                                 seq_len(bootstrapSize), 
                                                 .calculateRmst, 
