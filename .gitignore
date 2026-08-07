@@ -3,7 +3,7 @@
 .RData
 .Ruserdata
 *.html
-
+renv/*
 Documents/*.html
 Documents/*.pdf
 Documents/*.tex
